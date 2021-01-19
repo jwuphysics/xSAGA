@@ -39,7 +39,7 @@ def cmdline():
     parser.add_option(
         "--output",
         dest="output",
-        default=f"{PATH}/results/NSA_627160/images",
+        default=f"{PATH}/images-legacy",
         help="Path to save image data",
     )
     parser.add_option("--size", dest="size", default=224, help="Default size of images")
@@ -49,7 +49,7 @@ def cmdline():
     parser.add_option(
         "--cat",
         dest="cat",
-        default=f"{PATH}/results/NSA_627160/targets.csv",
+        default=f"{PATH}/data/xSAGA_SDSS_mini.csv",
         help="Catalog to get image names from.",
     )
 
