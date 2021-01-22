@@ -101,12 +101,34 @@ def get_satellites_around_hosts(sat, nsa, M_r_range=(-21, -20), z_cut=0.03):
     host_sep = host_sep.to('arcsec').value
 
     # get all satellite candidates matched to hosts
-    all_sats = sat_x_nsa.copy() 
+    all_sats = load_satellites_x_NSA()
 
     all_sats['host_nsaid'] = hosts.iloc[host_idx].index.values
     all_sats['host_sep'] = host_sep
 
     return all_sats
+
+def remove_duplicates(sats_in_host, duplicate_sep=1*u.arcmin):
+    """Given dataframe `sats_in_host`, removes all sources that are
+    within `duplicate_sep` from each other, except the brightest one.
+    """
+    
+    coords = SkyCoord(sats_in_host[['ra', 'dec']].values, unit='deg')
+    idx_i, idx_j, sep, _ = coords.search_around_sky(coords, duplicate_sep)
+
+    fainter_ids = []
+    for i, j, s in zip(idx_i, idx_j, sep):
+        if i != j:
+            fainter_ids.append(
+                np.where(
+                    sats_in_host.r0.iloc[i] > sats_in_host.r0.iloc[j], 
+                    sats_in_host.objID.iloc[i],
+                    sats_in_host.objID.iloc[j]
+                )
+            )
+
+    fainter_ids = np.unique(fainter_ids)
+    return sats_in_host.set_index('objID').drop(fainter_ids).copy()
 
 if __name__ == '__main__':
     
