@@ -132,8 +132,21 @@ def remove_duplicates(sats_in_host, duplicate_sep=1*u.arcmin):
 
 if __name__ == '__main__':
     
+
+    # sat = load_satellites()
+    nsa = load_NSA()
+    hosts = nsa.set_index('NSAID').copy()
+
     # save the satellites x NSA (z < 0.03) crossmatched catalog 
     # sat_x_nsa = load_satellites_x_NSA()
     # sat_x_nsa.to_csv(results_dir/'sat_x_NSA.csv', index=False)
 
-    sat_x_nsa = pd.read_csv(results_dir/'sat_x_NSA.csv')
+    # sat_x_nsa = pd.read_csv(results_dir/'sat_x_NSA.csv')
+
+    # all_sats = get_satellites_around_hosts(sat, nsa, M_r_range=(-22, -19))
+    # all_sats.to_csv(results_dir/'all_sats.csv', index=False)
+
+    all_sats = pd.read_csv(results_dir/'all_sats.csv')
+    grouped = all_sats.groupby('host_nsaid')
+
+
