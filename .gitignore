@@ -2,6 +2,7 @@ data
 results
 models
 images*
+.images*
 
 .ipynb_checkpoints
 __pycache__
