@@ -1,0 +1,372 @@
+"""
+John F. Wu
+2021-07-19
+
+A collection of methods to catalog xSAGA satellites and assign them to hosts.
+This file can produce the following catalogs: `hosts-nsa`, `lowz`, and `sats`,
+along with several diagnostic or results figures.
+
+We don't yet have a consistent naming convention, but it would be helpful to
+stick to something like this:
+
+    Name                    Description
+    ----                    -----------
+    hosts-nsa.parquet       hosts based on NASA-Sloan Atlas
+    hosts-sga.parquet       hosts based on Siena Galaxy Atlas
+    hosts-nsga.parquet      hosts based on NSA crossmatched with SGA
+    lowz-p0_5.parquet       low-z catalog for p_CNN > 0.5
+    lowz-p0_35.parquet      low-z catalog for p_CNN > 0.5
+    sats-nsa-p0_5.parquet   satellites with p_CNN > 0.5 assigned to NSA hosts
+"""
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+from astropy.io import fits
+from astropy.coordinates import SkyCoord
+from astropy.cosmology import FlatLambdaCDM
+import astropy.units as u
+from easyquery import Query
+from pathlib import Path
+
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+
+MAKE_PLOTS = False
+EXT = "png"
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+results_dir = ROOT / "results/xSAGA"
+
+
+def compute_surface_brightness(df):
+    """Returns a column of surface brightnesses in the r band.
+
+    For use with the satellite DataFrame.
+    """
+
+    return df.r0 + 2.5 * np.log10(2 * np.pi * df.R_eff ** 2)
+
+
+def compute_gmr_color(df):
+    """Returns a column of g-r compute_gmr_color
+
+    Fro use with the satellite DataFrame.
+    """
+    return df.g0 - df.r0
+
+
+def load_NSA():
+    """Returns dataframe with select NASA-Sloan Atlas columns.
+    """
+
+    # convenience function for FITS files to DataFrames
+    def byteorder(row):
+        return row.byteswap().newbyteorder()
+
+    nsa = fits.getdata(ROOT / "data/nsa_v1_0_1.fits")
+    nsa = pd.DataFrame(
+        {
+            "NSAID": byteorder(nsa.NSAID),
+            "z_NSA": byteorder(nsa.Z),
+            "ra_NSA": byteorder(nsa.RA),
+            "dec_NSA": byteorder(nsa.DEC),
+            "M_r_NSA": byteorder(nsa.ELPETRO_ABSMAG[:, 4]),
+            "M_g_NSA": byteorder(nsa.ELPETRO_ABSMAG[:, 3]),
+            "mass_NSA": byteorder(np.log10(nsa.ELPETRO_MASS)),
+            "SERSIC_N_NSA": byteorder(nsa.SERSIC_N),
+            "SERSIC_BA_NSA": byteorder(nsa.SERSIC_BA),
+            "SERSIC_PHI_NSA": byteorder(nsa.SERSIC_PHI),
+            "ELPETRO_BA_NSA": byteorder(nsa.ELPETRO_BA),
+            "PLATE": byteorder(nsa.PLATE),
+            "MJD": byteorder(nsa.MJD),
+            "FIBERID": byteorder(nsa.FIBERID),
+        }
+    )
+
+    # load value-added catalogs for stellar masses
+    gse = fits.getdata(ROOT / "data/galSpecExtra-dr8.fits")
+    gse = pd.DataFrame(
+        {
+            "PLATE": byteorder(gse.PLATEID),
+            "MJD": byteorder(gse.MJD),
+            "FIBERID": byteorder(gse.FIBERID),
+            "mass_GSE": byteorder(gse.LGM_TOT_P50),
+            "mass_err_GSE": 0.5
+            * (byteorder(gse.LGM_TOT_P84) - byteorder(gse.LGM_TOT_P16)),
+        }
+    )
+
+    join_columns = ["PLATE", "MJD", "FIBERID"]
+    nsa = nsa.join(gse.set_index(join_columns), on=join_columns, how="left")
+
+    return nsa.set_index("NSAID")
+
+
+def load_lowz(p_cnn_thresh=0.5):
+    """Returns dataframe of lowz candidates in xSAGA.
+    """
+
+    df = pd.read_csv(ROOT / "results/predictions-dr9.csv")
+    return df[df.p_CNN > p_cnn_thresh].copy()
+
+
+def plot_satellite_positions(
+    sats,
+    colored_by=None,
+    sized_by=None,
+    colormap="viridis",
+    figname=None,
+    vmin=None,
+    vmax=None,
+    colorbar_label=None,
+    xlim=None,
+    ylim=None,
+):
+    """Make a scatter plot of satellites by position.
+    """
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6), dpi=300)
+
+    sc = ax.scatter(
+        sats.ra,
+        sats.dec,
+        edgecolor="none",
+        s=1,
+        c=sats[colored_by],
+        vmin=vmin,
+        vmax=vmax,
+        cmap=colormap,
+    )
+
+    ax.set_xlim(*xlim)
+    ax.set_ylim(*ylim)
+    ax.set_xlabel("RA [deg]")
+    ax.set_ylabel("Dec [deg]")
+
+    fig.colorbar(sc, label=colorbar_label)
+    fig.tight_layout()
+
+    if figname is not None:
+        fig.savefig(results_dir / f"plots/{figname}.{EXT}", format=EXT)
+    else:
+        fig.savefig(
+            results_dir / f"plots/satellite_positions_by_{colored_by}.{EXT}", format=EXT
+        )
+
+
+def remove_hosts_from_lowz(hosts, lowz, match_sep=1 * u.arcsec, savefig=False):
+    """Filters the `lowz` catalog by crossmatching with `hosts`, and returns
+    `lowz` as well as `hosts` crossmatched with `lowz` matches.
+    """
+    host_coords = SkyCoord(hosts.ra_NSA, hosts.dec_NSA, unit="deg")
+    lowz_coords = SkyCoord(lowz.ra, lowz.dec, unit="deg")
+
+    host_idx, sep, _ = lowz_coords.match_to_catalog_sky(host_coords)
+
+    # plot matches
+    if savefig:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 3), dpi=300)
+        ax.hist(sep.to("arcsec").value, bins=np.logspace(-2, 5, num=100))
+        ax.set_xscale("log")
+        ax.set_xlabel("Separation [arcsec]")
+        ax.set_title("Separation between low-z candidates and NSA galaxies")
+        ax.grid(alpha=0.2)
+        fig.tight_layout()
+
+        fig.savefig(results_dir / f"plots/host-lowz-separations.{EXT}", format=EXT)
+
+    lowz_match = sep < match_sep
+    host_idx_match = host_idx[lowz_match]
+
+    hosts_x_lowz = pd.concat(
+        (hosts.iloc[host_idx_match].reset_index(), lowz[lowz_match].reset_index()),
+        axis=1,
+    ).set_index("NSAID", drop=True)
+
+    lowz_not_hosts = lowz[~lowz_match]
+
+    return lowz_not_hosts, hosts_x_lowz
+
+
+def assign_satellites_to_hosts(
+    hosts,
+    lowz,
+    z_min=0.005,
+    rank_by="mass_GSE",
+    descending_order=True,
+    sep_min=36.0,
+    sep_max=300.0,
+    savefig=False,
+):
+    """Match lowz galaxies to hosts in order to determine satellite systems.
+    Each host is matched to all surrounding satellites, and satellites
+    at distances greater than `sep_max` are removed. Finally, the satellites
+    are sorted by `rank_by` (e.g., descending host mass), such that the
+    most massive hosts are listed first, and duplicate matches are removed
+    such that the first instance is kept.
+
+    Parameters:
+        hosts : DataFrame
+            Catalog of hosts generated from NSA or SGA catalog
+        lowz : DataFrame
+            Catalog of lowz galaxies used to preselecting satellites
+        z_min : float
+            Minimum redshift considered
+        rank_by : str [column name of hosts]
+            The column to rank hosts by (in descending_order)
+        descending_order : bool
+            Whether to rank column in descending order
+        sep_min : float [kpc]
+            The minimum satellite separation for a host, designed to minimize
+            shredded host contaminants
+        sep_max : float [kpc]
+            The maximum satellite separation (virial radius) for a host
+        savefig : bool
+            Save a figure of host-low-z and host-satellite separations
+
+    Returns:
+        sats :  DataFrame
+            The subset of lowz that can be assigned to a host.
+    """
+
+    hosts = Query(f"z_NSA >= {z_min}").filter(hosts)
+
+    lowz_coords = SkyCoord(lowz.ra, lowz.dec, unit="deg")
+    host_coords = SkyCoord(hosts.ra_NSA, hosts.dec_NSA, unit="deg")
+
+    max_seplimit = (sep_max * u.kpc / cosmo.kpc_proper_per_arcmin(z_min)).to(u.arcmin)
+    lowz_idx, host_idx, angsep, _ = host_coords.search_around_sky(
+        lowz_coords, seplimit=max_seplimit
+    )
+
+    sep = (angsep * cosmo.kpc_proper_per_arcmin(hosts.iloc[host_idx].z_NSA)).to(u.kpc)
+
+    # first add satellite-host separation as a column, and then combine with hosts
+    sats = pd.concat(
+        [
+            pd.concat(
+                [
+                    lowz.iloc[lowz_idx].reset_index(drop=True),
+                    pd.Series(sep, name="sep"),
+                ],
+                axis=1,
+            ),
+            hosts.iloc[host_idx].reset_index(),
+        ],
+        axis=1,
+    )
+
+    sats = sats.sort_values("mass_GSE", ascending=False).set_index("objID")
+    sats = Query("sep <= 300").filter(sats)
+    sats = sats[~sats.index.duplicated(keep="first")]
+    sats = Query("sep > 36").filter(sats)
+
+    if savefig:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 3), dpi=300)
+        ax.hist(sep, bins=100, range=[0, 300], label="All low-$z$")
+        ax.hist(sats.sep, bins=100, range=[0, 300], label="Satellites")
+        ax.set_xlabel("Distance [pkpc]")
+        ax.set_ylabel("Number")
+        ax.grid(alpha=0.2)
+        ax.legend(framealpha=0)
+        fig.tight_layout()
+        fig.savefig(results_dir / f"plots/host-sat-separations.{EXT}", format=EXT)
+
+    return sats
+
+
+def plot_satellite_counts_per_host(hosts, sats):
+    """Plot a histogram of satellites per host, including hosts with no
+    matched satellites.
+    """
+    counts = sats.value_counts("NSAID").append(
+        pd.Series({nsaid: 0 for nsaid in hosts.index[~hosts.index.isin(sats.NSAID)]})
+    )
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4), dpi=300)
+
+    ax.hist(counts, bins=50, range=[0, 50], log=True)
+    ax.set_xlabel("Satellites per host")
+    ax.set_ylabel("Number of hosts")
+    ax.grid(alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(results_dir / f"plots/satellite_counts_per_host.{EXT}", format=EXT)
+
+    return
+
+
+if __name__ == "__main__":
+
+    # load hosts
+    # ==========
+    hosts_file = results_dir / "hosts-nsa.parquet"
+    try:
+        nsa = pd.read_parquet(hosts_file)
+    except (FileNotFoundError, OSError):
+        nsa = load_NSA()
+        nsa.to_parquet(results_dir / "hosts-nsa.parquet")
+
+    # load lowz candidates
+    # ====================
+    lowz_file = results_dir / "lowz-p0_5.parquet"
+    try:
+        lowz = pd.read_parquet(lowz_file)
+    except (FileNotFoundError, OSError):
+        lowz = load_lowz(p_cnn_thresh=0.5)
+        lowz["mu_eff"] = compute_surface_brightness(lowz)
+        lowz["gmr"] = compute_gmr_color(lowz)
+
+        # remove NaN coordinates
+        lowz = Query("ra == ra", "dec == dec").filter(lowz)
+
+        lowz.to_parquet(lowz_file)
+
+    # make lowz scatterplots
+    # ======================
+    if MAKE_PLOTS:
+        plot_satellite_positions(
+            lowz,
+            colored_by="gmr",
+            colorbar_label="$(g-r)_0$",
+            figname="lowz_positions_by_color",
+            vmin=0,
+            vmax=0.8,
+            colormap="RdYlBu_r",
+            xlim=(240, 120),
+            ylim=(0, 60),
+        )
+
+        plot_satellite_positions(
+            lowz,
+            colored_by="mu_eff",
+            colorbar_label=r"$\mu_{r,\rm eff}$",
+            figname="lowz_positions_by_surface_brightness",
+            vmin=21,
+            vmax=26,
+            colormap="viridis",
+            xlim=(240, 120),
+            ylim=(0, 60),
+        )
+
+    # remove massive hosts from lowz catalog
+    # ======================================
+    hosts = Query("z_NSA <= 0.03", "mass_GSE >= 9.5").filter(nsa)
+
+    lowz, hosts_x_lowz = remove_hosts_from_lowz(hosts, lowz, savefig=MAKE_PLOTS)
+
+    # identify (or load) satellites
+    # =============================
+    sats_file = results_dir / "sats_p0_5.parquet"
+    try:
+        sats = pd.read_parquet(sats_file)
+    except (FileNotFoundError, OSError):
+        sats = assign_satellites_to_hosts(
+            hosts, lowz, rank_by="mass_GSE", z_min=0.005, savefig=MAKE_PLOTS
+        )
+        sats.to_parquet(sats_file)
+
+    # save number of satellites per host
+    # ==================================
+    if savefig:
+        plot_satellite_counts_per_host(hosts, sats)
