@@ -276,24 +276,34 @@ def assign_satellites_to_hosts(
     return sats
 
 
-def plot_satellite_counts_per_host(hosts, sats):
+def count_satellites_per_host(hosts, sats, savefig=False):
     """Plot a histogram of satellites per host, including hosts with no
     matched satellites.
     """
-    counts = sats.value_counts("NSAID").append(
-        pd.Series({nsaid: 0 for nsaid in hosts.index[~hosts.index.isin(sats.NSAID)]})
+
+    counts = (
+        sats.value_counts("NSAID")
+        .append(
+            pd.Series(
+                {nsaid: 0 for nsaid in hosts.index[~hosts.index.isin(sats.NSAID)]}
+            )
+        )
+        .rename("n_sats_in_300kpc")
     )
 
-    fig, ax = plt.subplots(1, 1, figsize=(6, 4), dpi=300)
+    if savefig:
+        fig, ax = plt.subplots(1, 1, figsize=(6, 4), dpi=300)
 
-    ax.hist(counts, bins=50, range=[0, 50], log=True)
-    ax.set_xlabel("Satellites per host")
-    ax.set_ylabel("Number of hosts")
-    ax.grid(alpha=0.2)
-    fig.tight_layout()
-    fig.savefig(results_dir / f"plots/satellite_counts_per_host.{EXT}", format=EXT)
+        ax.hist(counts, bins=50, range=[0, 50], log=True)
+        ax.set_xlabel("Satellites per host")
+        ax.set_ylabel("Number of hosts")
+        ax.grid(alpha=0.2)
+        fig.tight_layout()
+        fig.savefig(results_dir / f"plots/satellite_counts_per_host.{EXT}", format=EXT)
 
-    return
+    hosts = hosts.reset_index().join(counts, on="NSAID").set_index("NSAID")
+
+    return hosts
 
 
 if __name__ == "__main__":
@@ -357,7 +367,7 @@ if __name__ == "__main__":
 
     # identify (or load) satellites
     # =============================
-    sats_file = results_dir / "sats_p0_5.parquet"
+    sats_file = results_dir / "sats-nsa_p0_5.parquet"
     try:
         sats = pd.read_parquet(sats_file)
     except (FileNotFoundError, OSError):
@@ -366,7 +376,12 @@ if __name__ == "__main__":
         )
         sats.to_parquet(sats_file)
 
-    # save number of satellites per host
-    # ==================================
-    if savefig:
-        plot_satellite_counts_per_host(hosts, sats)
+    # count satellites per host
+    # =========================
+    hosts_file = results_dir / "hosts-nsa.parquet"
+    try:
+        hosts = pd.read_parquet(hosts_file)
+        assert "n_sats_in_300kpc" in hosts.columns
+    except AssertionError:
+        hosts = count_satellites_per_host(hosts, sats, savefig=MAKE_PLOTS)
+        hosts.to_parquet(hosts_file)
