@@ -58,6 +58,9 @@ def compute_gmr_color(df):
 
 def load_NSA():
     """Returns dataframe with select NASA-Sloan Atlas columns.
+
+    Note: loading NSA and the GSE catalog requires ~5GB of RAM, and
+    will likely crash on a laptop with 8GB fo memory.
     """
 
     # convenience function for FITS files to DataFrames
