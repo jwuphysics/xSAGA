@@ -6,14 +6,10 @@ A collection of methods for creating catalogs of satellites around random
 hosts in order to estimate xSAGA backgrounds.
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from astropy.io import fits
-from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
-import astropy.units as u
 from easyquery import Query
 from pathlib import Path
 
