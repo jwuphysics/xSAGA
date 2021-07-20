@@ -111,7 +111,15 @@ def load_lowz(p_cnn_thresh=0.5):
     """
 
     df = pd.read_csv(ROOT / "results/predictions-dr9.csv")
-    return df[df.p_CNN > p_cnn_thresh].copy()
+    df = df[df.p_CNN > p_cnn_thresh].copy()
+
+    # remove NaN coordinates
+    df = Query("ra == ra", "dec == dec").filter(df)
+
+    df["mu_eff"] = compute_surface_brightness(df)
+    df["gmr"] = compute_gmr_color(df)
+
+    return df
 
 
 def plot_satellite_positions(
@@ -327,12 +335,6 @@ if __name__ == "__main__":
         lowz = pd.read_parquet(lowz_file)
     except (FileNotFoundError, OSError):
         lowz = load_lowz(p_cnn_thresh=0.5)
-        lowz["mu_eff"] = compute_surface_brightness(lowz)
-        lowz["gmr"] = compute_gmr_color(lowz)
-
-        # remove NaN coordinates
-        lowz = Query("ra == ra", "dec == dec").filter(lowz)
-
         lowz.to_parquet(lowz_file)
 
     # make lowz scatterplots
