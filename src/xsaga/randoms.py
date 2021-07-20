@@ -1,6 +1,6 @@
 """
 John F. Wu
-2021-07-19
+2021-07-20
 
 A collection of methods for creating catalogs of satellites around random
 hosts in order to estimate xSAGA backgrounds.
@@ -9,7 +9,6 @@ hosts in order to estimate xSAGA backgrounds.
 import numpy as np
 import pandas as pd
 
-from astropy.cosmology import FlatLambdaCDM
 from easyquery import Query
 from pathlib import Path
 
@@ -20,10 +19,7 @@ from satellites import (
     compute_gmr_color,
 )
 
-cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
-
 MAKE_PLOTS = False
-EXT = "png"
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 results_dir = ROOT / "results/xSAGA"
