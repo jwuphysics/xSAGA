@@ -17,7 +17,12 @@ import astropy.units as u
 from easyquery import Query
 from pathlib import Path
 
-from satellites import assign_satellites_to_hosts, count_satellites_per_host
+from satellites import (
+    assign_satellites_to_hosts,
+    count_satellites_per_host,
+    compute_surface_brightness,
+    compute_gmr_color,
+)
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
@@ -58,6 +63,25 @@ def generate_random_hosts(hosts, ra_range=[120, 240], dec_range=[0, 50]):
     hosts_rand.drop(excess_cols, axis=1, inplace=True)
 
     return hosts_rand
+
+
+def load_lowz_random(p_cnn_thresh=0.5):
+    """Returns dataframe of random SAGA-II selected objects. The number of objects
+    is equal to imposing a `p_cnn_thresh` cut.
+    """
+
+    df = pd.read_csv(ROOT / "results/predictions-dr9.csv")
+
+    N_lowz = Query(f"p_CNN > {p_cnn_thresh}").count(df)
+    df = df.sample(N_lowz)
+
+    # remove NaN coordinates
+    df = Query("ra == ra", "dec == dec").filter(df)
+
+    df["mu_eff"] = compute_surface_brightness(df)
+    df["gmr"] = compute_gmr_color(df)
+
+    return df
 
 
 if __name__ == "__main__":
@@ -112,3 +136,12 @@ if __name__ == "__main__":
             hosts_rand, sats_rand, savefig=MAKE_PLOTS
         )
         hosts_rand.to_parquet(hosts_rand_file)
+
+    # create random low-z catalog (same number of objects as p_cnn_thresh > 0.5)
+    # ==========================================================================
+    lowz_rand_file = results_dir / "lowz_rand.parquet"
+    try:
+        lowz_rand = pd.read_parquet(lowz_rand_file)
+    except (FileNotFoundError, OSError):
+        lowz_rand = load_lowz_random(p_cnn_thresh=0.5)
+        lowz_rand.to_parquet(lowz_rand_file)
