@@ -107,12 +107,18 @@ def catalog_redshift_clustering_positions():
 
 
 def plot_redshift_clustering(
-    fname="redshift-clustering", xlabel="Redshift", ylabel="$dN/dz$ [deg$^{-2}$]"
+    fname="redshift-clustering",
+    renormalize_lowz=38.1755,
+    xlabel=r"$z$",
+    ylabel=r"$dN/dz \times b$ [deg$^{-2}$]",
 ):
     """Makes a dN/dz plot as a function of redshift given the clustering catalog
     produced by http://tomographer.org (Menard et al. 2013, Chiang et al. 2019).
 
     Parameters:
+        renormalize_lowz : float
+            If not none, renormalize dNdz_b for the low-z sample by a given factor
+            (by default this is len(saga2)/len(lowz) = 4433095/116124 = 38.1755).
         fname : str
             The filename of the plot (in the dir `results/xSAGA/plots/`)
         xlabel : str
@@ -120,22 +126,29 @@ def plot_redshift_clustering(
             like that.
         ylabel : str
             Label for the y axis, which is "$dN/dz$", possibly multiplied by some
-            arbitrary constant, and most likely with units [deg$^{-2}$].
+            bias term, and most likely with units [deg$^{-2}$].
     """
 
     lowz_clustering_fname = results_dir / "redshift-clustering/lowz-p0_5-clustering.csv"
     lowz_clustering = pd.read_csv(lowz_clustering_fname)
 
+    if renormalize_lowz is not None:
+        lowz_clustering.dNdz_b *= renormalize_lowz
+        lowz_clustering.dNdz_b_err *= renormalize_lowz
+
     saga2_clustering_fname = results_dir / "redshift-clustering/saga2-clustering.csv"
     saga2_clustering = pd.read_csv(saga2_clustering_fname)
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 4), dpi=300)
+    fig, ax = plt.subplots(1, 1, figsize=(8, 3), dpi=300)
     ax.errorbar(
         lowz_clustering.z,
         lowz_clustering.dNdz_b,
         lowz_clustering.dNdz_b_err,
         ls="",
+        lw=1,
         marker="o",
+        markersize=4,
+        markeredgecolor="none",
         c="#003f5c",
         label="xSAGA low-z",
     )
@@ -144,11 +157,16 @@ def plot_redshift_clustering(
         saga2_clustering.dNdz_b,
         saga2_clustering.dNdz_b_err,
         ls="",
+        lw=1,
         marker="o",
+        markersize=4,
+        markeredgecolor="none",
         c="#ff6361",
-        label="SAGA II selection",
+        label="SAGA-II selection",
     )
 
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
     ax.grid(alpha=0.15)
     ax.legend(fontsize=12)
     fig.tight_layout()
