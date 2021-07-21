@@ -52,10 +52,9 @@ def compare_color():
 def angular_two_point_correlation(
     df, bins, q=None, N_boot=30, method="landy-szalay", random_state=42
 ):
-    """Returns bootstrapped angular correlation function for a catalog with coordinates.
+    r"""Returns bootstrapped angular correlation function for a catalog with coordinates.
 
     Parameters
-    ----------
         df : DataFrame
             Dataframe of galaxy coordinates and possibly other properties.
         bins : array
@@ -70,6 +69,15 @@ def angular_two_point_correlation(
             Must be `"landy-szalay"` or `"standard"`.
         random_state : int or np.random.RandomState
             Random state or seed integer for generating background.
+
+    Returns:
+        angcorr : 1d array
+            Angular correlation function, i.e., $\hat w(\theta)$.
+        angcorr_err : 1d array
+            Uncertainties on the angular correlations estimated via bootstrapping.
+        bootstraps : 2d array
+            The bootstrapped angular correlations, which is an array of shape
+            (`N_boot`, `len(bins)`).
     """
 
     if q is not None:
@@ -87,7 +95,6 @@ def angular_two_point_correlation(
         )
     except KeyError:
         try:
-            print("Columns `ra` and `dec` not found. Trying NSA coordinates.")
             angcorr, angcorr_err, bootstraps = bootstrap_two_point_angular(
                 df["ra_NSA"],
                 df["dec_NSA"],
@@ -110,8 +117,25 @@ def two_point_correlation():
     pass
 
 
-def redshift_clustering():
-    pass
+def catalog_redshift_clustering_positions():
+    """Use clustering tomography to estimate the redshift distribution of lowz and
+    SAGA catalogs. Produces intermediate catalog of positions, and the user must
+    later get final redshift bins using http://tomographer.org/, which can be plotted
+    with `plot_redshift_clustering()`.
+    """
+
+    lowz = pd.read_parquet(results_dir / "lowz-p0_5.parquet")
+    saga2 = pd.read_csv(ROOT / "results/predictions-dr9.csv")
+
+    lowz_positions_fname = results_dir / "redshift-clustering/lowz-p0_5-positions.csv"
+    lowz[["ra", "dec"]].to_csv(lowz_positions_fname, index=False)
+
+    saga2_positions_fname = results_dir / "redshift-clustering/saga2-positions.csv"
+    saga2[["ra", "dec"]].to_csv(saga2_positions_fname, index=False)
+
+    return
+
+
 
 
 def _deg2kpc(theta, z):
@@ -356,8 +380,10 @@ def plot_angular_two_point_sats_by_absolute_magnitude(
 
 
 if __name__ == "__main__":
-    plot_angular_two_point_lowz()
-    plot_angular_two_point_sats_and_hosts()
+    # plot_angular_two_point_lowz()
+    # plot_angular_two_point_sats_and_hosts()
     # plot_angular_two_point_sats_by_host_mass()
     # plot_angular_two_point_sats_by_apparent_magnitude()
     # plot_angular_two_point_sats_by_absolute_magnitude()
+
+    catalog_redshift_clustering_positions()
