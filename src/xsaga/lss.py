@@ -2,7 +2,7 @@
 John F. Wu
 2021-07-20
 
-Scripts for creating catalogs and figures to be in the first xSAGA paper.
+Scripts for creating figures of large scale structure.
 """
 
 import matplotlib.pyplot as plt
@@ -26,27 +26,8 @@ from pathlib import Path
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
-MAKE_PLOTS = False
-EXT = "png"
-
 ROOT = Path(__file__).resolve().parent.parent.parent
 results_dir = ROOT / "results/xSAGA"
-
-
-def measure_purity():
-    pass
-
-
-def measure_completeness():
-    pass
-
-
-def compare_surface_brightness():
-    pass
-
-
-def compare_color():
-    pass
 
 
 def angular_two_point_correlation(
@@ -111,10 +92,6 @@ def angular_two_point_correlation(
             )
 
     return angcorr, angcorr_err, bootstraps
-
-
-def two_point_correlation():
-    pass
 
 
 def catalog_redshift_clustering_positions():
