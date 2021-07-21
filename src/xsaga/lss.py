@@ -9,14 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from astroML.correlation import (
-    bootstrap_two_point_angular,
-    two_point_angular,
-    bootstrap_two_point,
-    two_point,
-)
-from astropy.io import fits
-from astropy.coordinates import SkyCoord
+from astroML.correlation import bootstrap_two_point_angular
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
 import cmasher as cmr
