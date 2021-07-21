@@ -136,6 +136,56 @@ def catalog_redshift_clustering_positions():
     return
 
 
+def plot_redshift_clustering(
+    fname="redshift-clustering", xlabel="Redshift", ylabel="$dN/dz$ [deg$^{-2}$]"
+):
+    """Makes a dN/dz plot as a function of redshift given the clustering catalog
+    produced by http://tomographer.org (Menard et al. 2013, Chiang et al. 2019).
+
+    Parameters:
+        fname : str
+            The filename of the plot (in the dir `results/xSAGA/plots/`)
+        xlabel : str
+            Label for the x axis, which should be "$z$" or "Redshift" or something
+            like that.
+        ylabel : str
+            Label for the y axis, which is "$dN/dz$", possibly multiplied by some
+            arbitrary constant, and most likely with units [deg$^{-2}$].
+    """
+
+    lowz_clustering_fname = results_dir / "redshift-clustering/lowz-p0_5-clustering.csv"
+    lowz_clustering = pd.read_csv(lowz_clustering_fname)
+
+    saga2_clustering_fname = results_dir / "redshift-clustering/saga2-clustering.csv"
+    saga2_clustering = pd.read_csv(saga2_clustering_fname)
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4), dpi=300)
+    ax.errorbar(
+        lowz_clustering.z,
+        lowz_clustering.dNdz_b,
+        lowz_clustering.dNdz_b_err,
+        ls="",
+        marker="o",
+        c="#003f5c",
+        label="xSAGA low-z",
+    )
+    ax.errorbar(
+        saga2_clustering.z,
+        saga2_clustering.dNdz_b,
+        saga2_clustering.dNdz_b_err,
+        ls="",
+        marker="o",
+        c="#ff6361",
+        label="SAGA II selection",
+    )
+
+    ax.grid(alpha=0.15)
+    ax.legend(fontsize=12)
+    fig.tight_layout()
+
+    fig.savefig(results_dir / f"plots/{fname}.png")
+
+    return
 
 
 def _deg2kpc(theta, z):
@@ -386,4 +436,5 @@ if __name__ == "__main__":
     # plot_angular_two_point_sats_by_apparent_magnitude()
     # plot_angular_two_point_sats_by_absolute_magnitude()
 
-    catalog_redshift_clustering_positions()
+    # catalog_redshift_clustering_positions()
+    plot_redshift_clustering()
