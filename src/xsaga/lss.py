@@ -165,6 +165,8 @@ def plot_redshift_clustering(
         label="SAGA-II selection",
     )
 
+    ax.axhline(xmin=0, xmax=1, c='k', lw=1, )
+
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
     ax.grid(alpha=0.15)
