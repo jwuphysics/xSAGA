@@ -166,7 +166,7 @@ def plot_redshift_clustering(
         label="SAGA-II selection",
     )
 
-    ax.axhline(xmin=0, xmax=1, c='k', lw=1, )
+    ax.axhline(xmin=0, xmax=1, c="k", lw=1)
 
     ax.set_xlabel(xlabel, fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
@@ -177,7 +177,6 @@ def plot_redshift_clustering(
     fig.savefig(results_dir / f"plots/{fname}.png")
 
     return
-
 
 
 def plot_angular_two_point_lowz(N_boot=10, bins=np.logspace(-2, 1, 15)):

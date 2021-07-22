@@ -2,7 +2,7 @@
 John F. Wu
 2021-07-21
 
-Scripts for evaluating CNN performance.
+Scripts for evaluating CNN performance using SAGA data.
 """
 
 import matplotlib.pyplot as plt
@@ -36,4 +36,8 @@ def compare_surface_brightness(predictions, labels, mu_eff):
 
 
 def compare_color(predictions, labels, gmr):
+    pass
+
+
+if __name__ == "__main__":
     pass

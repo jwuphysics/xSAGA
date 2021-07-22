@@ -162,7 +162,7 @@ def plot_satellite_positions(
         fig.savefig(results_dir / f"plots/{figname}.{EXT}", format=EXT)
     else:
         fig.savefig(
-            results_dir / f"plots/satellite_positions_by_{colored_by}.{EXT}", format=EXT
+            results_dir / f"plots/satellite_positions-by-{colored_by}.{EXT}", format=EXT
         )
 
 
@@ -350,7 +350,7 @@ if __name__ == "__main__":
             lowz,
             colored_by="gmr",
             colorbar_label="$(g-r)_0$",
-            figname="lowz_positions_by_color",
+            figname="lowz_positions-by-color",
             vmin=0,
             vmax=0.8,
             colormap="RdYlBu_r",
@@ -362,7 +362,7 @@ if __name__ == "__main__":
             lowz,
             colored_by="mu_eff",
             colorbar_label=r"$\mu_{r,\rm eff}$",
-            figname="lowz_positions_by_surface_brightness",
+            figname="lowz_positions-by-surface_brightness",
             vmin=21,
             vmax=26,
             colormap="viridis",
