@@ -28,26 +28,24 @@ SAT_QUERY = Query("M_r < -15.0")
 HOST_QUERY = Query("mass_GSE > 9.5", "z_NSA >= 0.005", "z_NSA <= 0.03")
 
 
-def load_hosts(impose_cut=True):
-    """Loads the host catalog with option to host impose mass and redshift cuts.
+def load_hosts_and_sats():
+    """Loads the hosts and satellite catalogs, the latter with a `M_r` column.
     """
     hosts = pd.read_parquet(results_dir / "hosts-nsa.parquet")
-
-    if impose_cut:
-        return HOST_QUERY.filter(hosts)
-    return hosts
-
-
-def load_sats(impose_cut=True):
-    """Loads the satellite catalog, with generated `M_r` column, and with option to
-    impose cuts using cuts defined above.
-    """
     sats = pd.read_parquet(results_dir / "sats-nsa_p0_5.parquet")
     sats["M_r"] = sats.r0 - cosmo.distmod(sats.z_NSA).value
 
-    if impose_cut:
-        return (SAT_QUERY & HOST_QUERY).filter(sats)
-    return sats
+    return hosts, sats
+
+
+def load_random_hosts_and_sats():
+    """Loads the random hosts and satellite catalogs, the latter with a `M_r` column.
+    """
+    hosts_rand = pd.read_parquet(results_dir / "hosts_rand-nsa.parquet")
+    sats_rand = pd.read_parquet(results_dir / "sats_rand-nsa_p0_5.parquet")
+    sats_rand["M_r"] = sats_rand.r0 - cosmo.distmod(sats_rand.z_NSA).value
+
+    return hosts_rand, sats_rand
 
 
 def compute_radial_cdf(sats, radial_bins):
@@ -67,15 +65,16 @@ def compute_radial_cdf(sats, radial_bins):
     return np.array([Query(f"sep < {r}").count(sats) for r in radial_bins])
 
 
-def plot_radial_cdf_by_host_mass(
+def plot_radial_profile_by_host_mass(
     hosts,
     sats,
     radial_bins=np.arange(36, 300, 1),
     normalize=False,
+    cumulative=True,
     mass_min=9.5,
-    mass_max=11.0,
+    mass_max=11.5,
     dmass=0.5,
-    fname="radial_profiles-by-host_mass",
+    fname="radial_cdf-by-host_mass",
 ):
     """Creates a radial profile plot for satellites.
     """
@@ -86,21 +85,27 @@ def plot_radial_cdf_by_host_mass(
     for m1, m2 in zip(mass_bins, mass_bins + dmass):
         q = Query(f"mass_GSE > {m1}", f"mass_GSE < {m2}")
 
-        # total satellite counts
+        # either normalize satellite counts or divide by number of hosts
         cdf = compute_radial_cdf(q.filter(sats), radial_bins)
+        profile = cdf / (q.count(sats) if normalize else q.count(hosts))
 
-        # either normalize to unity at max radius, or divide by number of hosts
-        if normalize:
-            cdf = cdf / q.count(sats)
-        else:
-            cdf = cdf / q.count(hosts)
+        if not cumulative:
+            profile = np.gradient(profile, radial_bins)
 
         ax.plot(
-            radial_bins, cdf, c=mass2color((m1 + m2) / 2), label=f"${m1}-{m2}$", lw=3
+            radial_bins,
+            profile,
+            c=mass2color((m1 + m2) / 2),
+            label=f"${m1}-{m2}$",
+            lw=3,
         )
 
-    ax.set_xlabel("Distance [pkpc]", fontsize=12)
-    ax.set_ylabel(r"$N_{\rm sat}(<r)$", fontsize=12)
+    xlabel = "Distance [pkpc]"
+    ylabel = r"$N_{\rm sat}(<r)$" if cumulative else r"$\frac{dN_{\rm sat}}{dr}(<r)$"
+    ylabel = ("Normalized " if normalize else "") + ylabel
+
+    ax.set_xlabel(xlabel, fontsize=12)
+    ax.set_ylabel(ylabel, fontsize=12)
     ax.grid(alpha=0.15)
     ax.legend(fontsize=12)
     fig.tight_layout()
@@ -109,12 +114,43 @@ def plot_radial_cdf_by_host_mass(
 
 if __name__ == "__main__":
 
-    hosts = load_hosts(impose_cut=False)
-    sats = load_sats(impose_cut=False)
+    hosts, sats = load_hosts_and_sats()
+    hosts_rand, sats_rand = load_random_hosts_and_sats()
 
-    plot_radial_cdf_by_host_mass(
-        hosts, sats, normalize=False, fname="radial_profiles-by-host_mass"
+    # impose cuts
+    hosts = HOST_QUERY.filter(hosts)
+    hosts_rand = HOST_QUERY.filter(hosts_rand)
+    sats = (SAT_QUERY & HOST_QUERY).filter(sats)
+    sats_rand = (SAT_QUERY & HOST_QUERY).filter(sats_rand)
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        normalize=False,
+        fname="radial_profile-by-host_mass",
     )
-    plot_radial_cdf_by_host_mass(
-        hosts, sats, normalize=False, fname="normalized-radial-profiles-by-host_mass"
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        normalize=True,
+        fname="normalized_radial_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.5,
+        normalize=False,
+        cumulative=False,
+        fname="dNdr-by-host_mass",
+    )
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.5,
+        normalize=True,
+        cumulative=False,
+        fname="normalized_dNdr-by-host_mass",
     )
