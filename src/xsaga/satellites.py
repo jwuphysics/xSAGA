@@ -287,7 +287,13 @@ def assign_satellites_to_hosts(
     return sats
 
 
-def count_satellites_per_host(hosts, sats, savefig=False):
+def count_satellites_per_host(
+    hosts,
+    sats,
+    column_name="n_sats_in_300kpc",
+    fname="satellite_counts_per_host",
+    savefig=False,
+):
     """Plot a histogram of satellites per host, including hosts with no
     matched satellites.
     """
@@ -299,7 +305,7 @@ def count_satellites_per_host(hosts, sats, savefig=False):
                 {nsaid: 0 for nsaid in hosts.index[~hosts.index.isin(sats.NSAID)]}
             )
         )
-        .rename("n_sats_in_300kpc")
+        .rename(column_name)
     )
 
     if savefig:
@@ -310,7 +316,7 @@ def count_satellites_per_host(hosts, sats, savefig=False):
         ax.set_ylabel("Number of hosts")
         ax.grid(alpha=0.2)
         fig.tight_layout()
-        fig.savefig(results_dir / f"plots/satellite_counts_per_host.{EXT}", format=EXT)
+        fig.savefig(results_dir / f"plots/{fname}.{EXT}", format=EXT)
 
     hosts = hosts.reset_index().join(counts, on="NSAID").set_index("NSAID")
 
@@ -384,9 +390,55 @@ if __name__ == "__main__":
     # count satellites per host
     # =========================
     hosts_file = results_dir / "hosts-nsa.parquet"
+    column_name = "n_sats_in_300kpc"
     try:
         hosts = pd.read_parquet(hosts_file)
-        assert "n_sats_in_300kpc" in hosts.columns
+        assert column_name in hosts.columns
     except AssertionError:
-        hosts = count_satellites_per_host(hosts, sats, savefig=MAKE_PLOTS)
+        hosts = count_satellites_per_host(
+            hosts,
+            sats,
+            column_name=column_name,
+            fname=f"{column_name}_per_host",
+            savefig=True,
+        )
+        hosts.to_parquet(hosts_file)
+
+    # count satellites within 150 kpc
+    # ===============================
+    hosts_file = results_dir / "hosts-nsa.parquet"
+    column_name = "n_sats_in_150kpc"
+    try:
+        hosts = pd.read_parquet(hosts_file)
+        assert column_name in hosts.columns
+    except AssertionError:
+        sats_in_150kpc = Query("sep <= 150").filter(sats)
+        hosts = count_satellites_per_host(
+            hosts,
+            sats_in_150kpc,
+            column_name=column_name,
+            fname=f"{column_name}_per_host",
+            savefig=True,
+        )
+        hosts.to_parquet(hosts_file)
+
+    # count *complete* satellites per host
+    # ====================================
+    hosts_file = results_dir / "hosts-nsa.parquet"
+    column_name = "n_complete_sats_in_300kpc"
+    try:
+        hosts = pd.read_parquet(hosts_file)
+        assert column_name in hosts.columns
+    except AssertionError:
+        # compute absolute magnitude and select those within completeness limit
+        sats["M_r"] = sats.r0 - cosmo.distmod(sats.z_NSA).value
+        complete_sats = Query("M_r < -15.0").filter(sats)
+
+        hosts = count_satellites_per_host(
+            hosts,
+            complete_sats,
+            column_name=column_name,
+            fname=f"{column_name}_per_host",
+            savefig=True,
+        )
         hosts.to_parquet(hosts_file)
