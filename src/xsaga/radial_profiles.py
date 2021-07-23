@@ -3,7 +3,10 @@ John F. Wu
 2021-07-22
 
 Scripts for investigating the radial distribution of satellties around hosts. Output
-plots are saved to `{ROOT}/results/xSAGA/plots/profiles/`.
+plots are saved to `{ROOT}/results/xSAGA/plots/profiles-overlapping_hosts/`
+
+Note: in `{ROOT}/results/xSAGA/plots/profiles-not_isolated_hosts/`, you can also find
+the script generated before we ensured that hosts are isolated/not overlapping.
 """
 
 import matplotlib.pyplot as plt
@@ -11,7 +14,9 @@ import numpy as np
 import pandas as pd
 
 from astropy.cosmology import FlatLambdaCDM
+from astropy.coordinates import SkyCoord
 from astropy.stats import bootstrap
+from astropy import units as u
 from easyquery import Query
 from functools import partial
 from pathlib import Path
@@ -46,6 +51,50 @@ def load_random_hosts_and_sats():
     sats_rand["M_r"] = sats_rand.r0 - cosmo.distmod(sats_rand.z_NSA).value
 
     return hosts_rand, sats_rand
+
+
+def isolate_hosts(
+    hosts, delta_mass=0.5, delta_z=0.003, delta_d=1.0, return_not_isolated=False
+):
+    """Remove hosts that have significantly more massive neighbors nearby.
+
+    Parameters
+        hosts : pd.DataFrame
+            The DataFrame of hosts, pre-filtered
+        delta_mass, delta_z, delta_d : floats
+            If the difference in mass between a host and another neighbor within
+            projected distance `delta_d` (Mpc) and redshift `delta_z` exceeds
+            `delta_mass`, then remove it.
+        return_not_isolated : bool
+            If True, then return the converse (not isolated) subset of hosts
+
+    Returns
+        isolated_hosts : pd.DataFrame
+            The DataFrame of hosts, now filtered according to given parameters.
+            Includes extra columns, `nearest_host_NSAID`, which gives the NSAID
+            of the nearest *projected* host, and `nearest_host_sep`, which gives
+            the separation in projected Mpc.
+    """
+
+    hosts_coord = SkyCoord(hosts.ra_NSA, hosts.dec_NSA, unit="deg")
+
+    idx, sep, _ = hosts_coord.match_to_catalog_sky(hosts_coord, nthneighbor=2)
+    nearest_host_sep = (
+        (sep * cosmo.kpc_proper_per_arcmin(hosts.iloc[idx].z_NSA)).to(u.Mpc).value
+    )
+    nearest_host_NSAID = hosts.iloc[idx].index.values
+
+    hosts["nearest_host_sep"] = nearest_host_sep
+    hosts["nearest_host_NSAID"] = nearest_host_NSAID
+
+    not_isolated = (
+        (nearest_host_sep < delta_d)
+        & (np.abs(hosts.z_NSA.values - hosts.iloc[idx].z_NSA.values) < delta_z)
+        & (hosts.iloc[idx].mass_GSE.values - hosts.mass_GSE.values > delta_mass)
+    )
+
+    # XOR ensures that we return the correct subset (isolated/not isolated) of hosts
+    return hosts[(return_not_isolated) ^ (~not_isolated)]
 
 
 def compute_radial_cdf(satellite_separations, radial_bins):
@@ -481,100 +530,126 @@ if __name__ == "__main__":
     sats = (SAT_QUERY & HOST_QUERY).filter(sats)
     sats_rand = (SAT_QUERY & HOST_QUERY).filter(sats_rand)
 
+    # isolate hosts and sats
+    hosts = isolate_hosts(hosts, delta_mass=0.5, delta_z=0.003, delta_d=1.0)
+    sats = sats[sats.NSAID.isin(hosts.index)].copy()
+
+    # use bootstraps
+    N_boot = 100
+
     # host mass
     # =========
 
-    # plot_radial_profile_by_host_mass(
-    #     hosts, sats, dmass=0.25, N_boot=100, fname="radial_profile-by-host_mass"
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     dmass=0.25,
-    #     normalize=True,
-    #     N_boot=100,
-    #     fname="normalized_radial_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     dmass=0.25,
-    #     surface_density=True,
-    #     N_boot=100,
-    #     fname="surface_density_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     dmass=0.5,
-    #     cumulative=False,
-    #     N_boot=100,
-    #     fname="radial_pdf-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     surface_density=True,
-    #     N_boot=100,
-    #     fname="surface_density_pdf-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     normalize=True,
-    #     N_boot=100,
-    #     fname="normalized_radial_pdf-by-host_mass",
-    # )
+    plot_radial_profile_by_host_mass(
+        hosts, sats, dmass=0.25, N_boot=N_boot, fname="radial_profile-by-host_mass"
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        normalize=True,
+        N_boot=N_boot,
+        fname="normalized_radial_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        surface_density=True,
+        N_boot=N_boot,
+        fname="surface_density_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        dmass=0.5,
+        cumulative=False,
+        N_boot=N_boot,
+        fname="radial_pdf-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        surface_density=True,
+        N_boot=N_boot,
+        fname="surface_density_pdf-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        normalize=True,
+        N_boot=N_boot,
+        fname="normalized_radial_pdf-by-host_mass",
+    )
 
     # morphology
     # ==========
-
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 1),
-    #     cumulative=True,
-    #     N_boot=100,
-    #     fname="radial_profile-by-host_morphology",
-    # )
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     N_boot=100,
-    #     fname="radial_pdf-by-host_morphology",
-    # )
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     surface_density=True,
-    #     N_boot=100,
-    #     fname="surface_density_pdf-by-host_morphology",
-    # )
-
-    # morphology, corrected for randoms
-    # =================================
 
     plot_radial_profile_by_host_morphology(
         hosts,
         sats,
         radial_bins=np.arange(36, 300, 1),
         cumulative=True,
-        N_boot=100,
+        N_boot=N_boot,
+        fname="radial_profile-by-host_morphology",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        N_boot=N_boot,
+        fname="radial_pdf-by-host_morphology",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        surface_density=True,
+        N_boot=N_boot,
+        fname="surface_density_pdf-by-host_morphology",
+    )
+
+    # more plots corrected for randoms
+    # ================================
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 1),
+        cumulative=True,
+        N_boot=N_boot,
+        fname="corrected_radial_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 1),
+        cumulative=True,
+        N_boot=N_boot,
         fname="corrected_radial_profile-by-host_morphology",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 1),
+        cumulative=True,
+        normalize=True,
+        N_boot=N_boot,
+        fname="corrected_normalized_radial_profile-by-host_morphology",
     )
