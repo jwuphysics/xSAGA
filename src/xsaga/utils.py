@@ -35,3 +35,10 @@ def mass2color(mass, cmap=cmr.ember, mass_min=9.5, mass_max=11.5):
     to a color determined by colormap `cmap`.
     """
     return cmap((mass - mass_min) / (mass_max - mass_min))
+
+
+def gap2color(gap, cmap=cmr.lavender, gap_min=0, gap_max=6):
+    """Convenience function for mapping a magnitude gap, normalized to some gap range,
+    to a color determined by colormap `cmap`.
+    """
+    return cmap((gap - gap_min) / (gap_max - gap_min))

@@ -21,7 +21,8 @@ from easyquery import Query
 from functools import partial
 from pathlib import Path
 
-from utils import mass2color
+from utils import mass2color, gap2color
+from satellites import compute_magnitude_gap
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
@@ -30,7 +31,7 @@ results_dir = ROOT / "results/xSAGA"
 
 # cuts on satellite systems
 SAT_QUERY = Query("M_r < -15.0")
-HOST_QUERY = Query("mass_GSE > 9.5", "z_NSA >= 0.02", "z_NSA <= 0.03")
+HOST_QUERY = Query("mass_GSE > 9.5", "z_NSA >= 0.01", "z_NSA <= 0.03")
 
 
 def load_hosts_and_sats():
@@ -165,58 +166,62 @@ def plot_radial_profile_by_host_mass(
         q = Query(f"mass_GSE > {m1}", f"mass_GSE < {m2}")
         satellite_separations = q.filter(sats).sep.values
 
-        # compute sat cumulative profile or bootstrapped profile
-        if N_boot is None:
-            profile = compute_radial_cdf(satellite_separations, radial_bins)
+        try:
+            # compute sat cumulative profile or bootstrapped profile
+            if N_boot is None:
+                profile = compute_radial_cdf(satellite_separations, radial_bins)
 
-            # either normalize satellite counts or divide by number of hosts
-            profile = profile / (q.count(sats) if normalize else q.count(hosts))
+                # either normalize satellite counts or divide by number of hosts
+                profile = profile / (q.count(sats) if normalize else q.count(hosts))
 
-            if surface_density:
-                # kpc^-2 --> Mpc^-2
-                surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
-                profile = profile / surface_area
+                if surface_density:
+                    # kpc^-2 --> Mpc^-2
+                    surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                    profile = profile / surface_area
 
-            if not cumulative:
-                profile = np.gradient(profile, radial_bins)
+                if not cumulative:
+                    profile = np.gradient(profile, radial_bins)
 
-            ax.plot(
-                radial_bins,
-                profile,
-                c=mass2color((m1 + m2) / 2),
-                label=f"${m1}-{m2}$",
-                lw=3,
-            )
-        else:
-            assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
-            profile_bootstrapped = bootstrap(
-                satellite_separations,
-                bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
-                bootnum=N_boot,
-            )
-
-            # TODO: should I also bootstrap the denominator?
-            profile_bootstrapped = profile_bootstrapped / (
-                q.count(sats) if normalize else q.count(hosts)
-            )
-
-            if surface_density:
-                surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
-                profile_bootstrapped = profile_bootstrapped / surface_area
-
-            if not cumulative:
-                profile_bootstrapped = np.gradient(
-                    profile_bootstrapped, radial_bins, axis=1
+                ax.plot(
+                    radial_bins,
+                    profile,
+                    c=mass2color((m1 + m2) / 2),
+                    label=f"${m1}-{m2}$",
+                    lw=3,
+                )
+            else:
+                assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
+                profile_bootstrapped = bootstrap(
+                    satellite_separations,
+                    bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
+                    bootnum=N_boot,
                 )
 
-            ax.fill_between(
-                radial_bins,
-                *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
-                color=mass2color((m1 + m2) / 2),
-                label=f"${m1}-{m2}$",
-                lw=0,
-                alpha=0.7,
-            )
+                # TODO: should I also bootstrap the denominator?
+                profile_bootstrapped = profile_bootstrapped / (
+                    q.count(sats) if normalize else q.count(hosts)
+                )
+
+                if surface_density:
+                    surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                    profile_bootstrapped = profile_bootstrapped / surface_area
+
+                if not cumulative:
+                    profile_bootstrapped = np.gradient(
+                        profile_bootstrapped, radial_bins, axis=1
+                    )
+
+                ax.fill_between(
+                    radial_bins,
+                    *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
+                    color=mass2color((m1 + m2) / 2),
+                    label=f"${m1}-{m2}$",
+                    lw=0,
+                    alpha=0.7,
+                )
+
+        except ValueError:
+            continue
 
     xlabel = "Distance [pkpc]"
     ylabel = (
@@ -277,76 +282,80 @@ def plot_corrected_radial_profile_by_host_mass(
         satellite_separations = q.filter(sats).sep.values
         random_separations = q.filter(sats_rand).sep.values
 
-        if N_boot is None:
-            profile = compute_radial_cdf(satellite_separations, radial_bins)
-            profile_rand = compute_radial_cdf(random_separations, radial_bins)
+        try:
+            if N_boot is None:
+                profile = compute_radial_cdf(satellite_separations, radial_bins)
+                profile_rand = compute_radial_cdf(random_separations, radial_bins)
 
-            profile = profile / (q.count(sats) if normalize else q.count(hosts))
-            profile_rand = profile_rand / (
-                q.count(sats_rand) if normalize else q.count(hosts_rand)
-            )
-
-            if surface_density:
-                surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
-                profile = profile / surface_area
-                profile_rand = profile_rand / surface_area
-
-            if not cumulative:
-                profile = np.gradient(profile, radial_bins)
-                profile_rand = np.gradient(profile_rand, radial_bins)
-
-            ax.plot(
-                radial_bins,
-                profile - profile_rand,
-                c=mass2color((m1 + m2) / 2),
-                label=f"${m1}-{m2}$",
-                lw=3,
-            )
-        else:
-            assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
-            profile_bootstrapped = bootstrap(
-                satellite_separations,
-                bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
-                bootnum=N_boot,
-            )
-            profile_rand_bootstrapped = bootstrap(
-                random_separations,
-                bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
-                bootnum=N_boot,
-            )
-
-            profile_bootstrapped = profile_bootstrapped / (
-                q.count(sats) if normalize else q.count(hosts)
-            )
-            profile_rand_bootstrapped = profile_rand_bootstrapped / (
-                q.count(sats_rand) if normalize else q.count(hosts_rand)
-            )
-
-            if surface_density:
-                surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
-                profile_bootstrapped = profile_bootstrapped / surface_area
-                profile_rand_bootstrapped = profile_rand_bootstrapped / surface_area
-
-            if not cumulative:
-                profile_bootstrapped = np.gradient(
-                    profile_bootstrapped, radial_bins, axis=1
-                )
-                profile_rand_bootstrapped = np.gradient(
-                    profile_rand_bootstrapped, radial_bins, axis=1
+                profile = profile / (q.count(sats) if normalize else q.count(hosts))
+                profile_rand = profile_rand / (
+                    q.count(sats_rand) if normalize else q.count(hosts_rand)
                 )
 
-            ax.fill_between(
-                radial_bins,
-                *np.quantile(
-                    profile_bootstrapped - profile_rand_bootstrapped,
-                    [0.16, 0.84],
-                    axis=0,
-                ),
-                color=mass2color((m1 + m2) / 2),
-                label=f"${m1}-{m2}$",
-                lw=0,
-                alpha=0.7,
-            )
+                if surface_density:
+                    surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                    profile = profile / surface_area
+                    profile_rand = profile_rand / surface_area
+
+                if not cumulative:
+                    profile = np.gradient(profile, radial_bins)
+                    profile_rand = np.gradient(profile_rand, radial_bins)
+
+                ax.plot(
+                    radial_bins,
+                    profile - profile_rand,
+                    c=mass2color((m1 + m2) / 2),
+                    label=f"${m1}-{m2}$",
+                    lw=3,
+                )
+            else:
+                assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
+                profile_bootstrapped = bootstrap(
+                    satellite_separations,
+                    bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
+                    bootnum=N_boot,
+                )
+                profile_rand_bootstrapped = bootstrap(
+                    random_separations,
+                    bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
+                    bootnum=N_boot,
+                )
+
+                profile_bootstrapped = profile_bootstrapped / (
+                    q.count(sats) if normalize else q.count(hosts)
+                )
+                profile_rand_bootstrapped = profile_rand_bootstrapped / (
+                    q.count(sats_rand) if normalize else q.count(hosts_rand)
+                )
+
+                if surface_density:
+                    surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                    profile_bootstrapped = profile_bootstrapped / surface_area
+                    profile_rand_bootstrapped = profile_rand_bootstrapped / surface_area
+
+                if not cumulative:
+                    profile_bootstrapped = np.gradient(
+                        profile_bootstrapped, radial_bins, axis=1
+                    )
+                    profile_rand_bootstrapped = np.gradient(
+                        profile_rand_bootstrapped, radial_bins, axis=1
+                    )
+
+                ax.fill_between(
+                    radial_bins,
+                    *np.quantile(
+                        profile_bootstrapped - profile_rand_bootstrapped,
+                        [0.16, 0.84],
+                        axis=0,
+                    ),
+                    color=mass2color((m1 + m2) / 2),
+                    label=f"${m1}-{m2}$",
+                    lw=0,
+                    alpha=0.7,
+                )
+
+        except ValueError:
+            continue
 
     xlabel = "Distance [pkpc]"
     ylabel = (
@@ -436,57 +445,61 @@ def plot_radial_profile_by_host_morphology(
             q = q_sersic_n & q_mass
             satellite_separations = q.filter(sats).sep.values
 
-            # compute sat cumulative profile or bootstrapped profile
-            if N_boot is None:
-                profile = compute_radial_cdf(satellite_separations, radial_bins)
+            try:
+                # compute sat cumulative profile or bootstrapped profile
+                if N_boot is None:
+                    profile = compute_radial_cdf(satellite_separations, radial_bins)
 
-                # either normalize satellite counts or divide by number of hosts
-                profile = profile / (q.count(sats) if normalize else q.count(hosts))
+                    # either normalize satellite counts or divide by number of hosts
+                    profile = profile / (q.count(sats) if normalize else q.count(hosts))
 
-                if surface_density:
-                    surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
-                    profile = profile / surface_area
+                    if surface_density:
+                        surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                        profile = profile / surface_area
 
-                if not cumulative:
-                    profile = np.gradient(profile, radial_bins)
+                    if not cumulative:
+                        profile = np.gradient(profile, radial_bins)
 
-                ax.plot(
-                    radial_bins,
-                    profile,
-                    c=mass2color((m1 + m2) / 2),
-                    label=f"${m1}-{m2}$",
-                    lw=3,
-                )
-            else:
-                assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
-                profile_bootstrapped = bootstrap(
-                    satellite_separations,
-                    bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
-                    bootnum=N_boot,
-                )
-
-                # TODO: should I also boostrap the denominator?
-                profile_bootstrapped = profile_bootstrapped / (
-                    q.count(sats) if normalize else q.count(hosts)
-                )
-
-                if surface_density:
-                    surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
-                    profile_bootstrapped = profile_bootstrapped / surface_area
-
-                if not cumulative:
-                    profile_bootstrapped = np.gradient(
-                        profile_bootstrapped, radial_bins, axis=1
+                    ax.plot(
+                        radial_bins,
+                        profile,
+                        c=mass2color((m1 + m2) / 2),
+                        label=f"${m1}-{m2}$",
+                        lw=3,
+                    )
+                else:
+                    assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
+                    profile_bootstrapped = bootstrap(
+                        satellite_separations,
+                        bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
+                        bootnum=N_boot,
                     )
 
-                ax.fill_between(
-                    radial_bins,
-                    *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
-                    color=mass2color((m1 + m2) / 2),
-                    label=f"${m1}-{m2}$",
-                    lw=0,
-                    alpha=0.7,
-                )
+                    # TODO: should I also boostrap the denominator?
+                    profile_bootstrapped = profile_bootstrapped / (
+                        q.count(sats) if normalize else q.count(hosts)
+                    )
+
+                    if surface_density:
+                        surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                        profile_bootstrapped = profile_bootstrapped / surface_area
+
+                    if not cumulative:
+                        profile_bootstrapped = np.gradient(
+                            profile_bootstrapped, radial_bins, axis=1
+                        )
+
+                    ax.fill_between(
+                        radial_bins,
+                        *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
+                        color=mass2color((m1 + m2) / 2),
+                        label=f"${m1}-{m2}$",
+                        lw=0,
+                        alpha=0.7,
+                    )
+
+            except ValueError:
+                continue
 
         ax.grid(alpha=0.15)
         ax.text(
@@ -519,6 +532,171 @@ def plot_radial_profile_by_host_morphology(
     fig.savefig(results_dir / f"plots/profiles/{fname}.png")
 
 
+def plot_radial_profile_by_magnitude_gap(
+    sats,
+    radial_bins=np.arange(36, 300, 1),
+    cumulative=True,
+    normalize=False,
+    surface_density=False,
+    N_boot=None,
+    magnitude_gap_min=0,
+    magnitude_gap_max=7,
+    dgap=1,
+    min_sats=50,
+    mass_bins=[(9.5, 10), (10, 10.5), (10.5, 11)],
+    fname="radial_profile-by-magnitude_gap",
+):
+    """Creates radial profile plots colored by magnitude gap and split by host mass.
+
+    Parameters
+        hosts : pd.DataFrame
+            DataFrame of hosts, which is assumed to be pre-filtered using
+            cuts at top of this script.
+        sats : pd.DataFrame
+            DataFrame of satellites, also assumed to be filtered.
+        radial_bins : 1d array-like
+            A list or array of (maximum) projected radii.
+        cumulative : bool
+            Toggles whether to plot the satellite number within a given projected
+            radius versus at a given radius.
+        normalize : bool
+            Toggles whether to divide the curves by the total number of satellites
+        surface_density : bool
+            Toggles whether to divide by the annular surface area at each radius.
+        N_boot : int
+            The number of bootstrap resamples (for estimating uncertainties).
+            Can also be `None` if boostrapping is not wanted.
+        magnitude_gap_min : float
+            The minimum magnitude gap between host and brightest satellite.
+        magnitude_gap_max : float
+            The maximum magnitude gap between host and brightest satellite.
+        dgap : float
+            The size of each bin for magnitude gaps.
+        min_sats : int
+            The minimum number of satellites needed for plotting a radial profile.
+        mass_bins : 1d list of tuples, or 2d array of shape (N, 2)
+            N pairs of (mass_min, mass_max) for each panel in the plot.
+        fname : str
+            The name of the output figure (JPG format), to be saved in the directory
+            `./results/xSAGA/plots/profiles/`.
+    """
+
+    N = len(mass_bins)
+
+    if "magnitude_gap" not in sats.columns:
+        sats = compute_magnitude_gap(sats)
+
+    fig, axes = plt.subplots(1, N, figsize=(6 * N, 6), dpi=300, sharey=True)
+
+    magnitude_gap_bins = np.arange(magnitude_gap_min, magnitude_gap_max, dgap)
+
+    for [m1, m2], ax in zip(mass_bins, axes.flat):
+        q_mass = Query(f"mass_GSE > {m1}", f"mass_GSE < {m2}")
+
+        for mag1, mag2 in zip(magnitude_gap_bins, magnitude_gap_bins + dgap):
+            q_gap = Query(f"magnitude_gap > {mag1}", f"magnitude_gap < {mag2}")
+
+            # combine morphology and mass queries
+            q = q_mass & q_gap
+            satellite_separations = q.filter(sats).sep.values
+
+            # skip if too few satellites to form a profile
+            if len(satellite_separations) < min_sats:
+                continue
+
+            try:
+                # compute sat cumulative profile or bootstrapped profile
+                if N_boot is None:
+                    profile = compute_radial_cdf(satellite_separations, radial_bins)
+
+                    # either normalize satellite counts or divide by number of hosts
+                    profile = profile / (
+                        q.count(sats)
+                        if normalize
+                        else len(q.filter(sats).NSAID.unique())
+                    )
+
+                    if surface_density:
+                        surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                        profile = profile / surface_area
+
+                    if not cumulative:
+                        profile = np.gradient(profile, radial_bins)
+
+                    ax.plot(
+                        radial_bins,
+                        profile,
+                        c=gap2color((mag1 + mag2) / 2),
+                        label=f"${m1}-{m2}$",
+                        lw=3,
+                    )
+                else:
+                    assert isinstance(N_boot, int), "Please enter an integer `N_boot`."
+                    profile_bootstrapped = bootstrap(
+                        satellite_separations,
+                        bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
+                        bootnum=N_boot,
+                    )
+
+                    profile_bootstrapped = profile_bootstrapped / (
+                        q.count(sats)
+                        if normalize
+                        else len(q.filter(sats).NSAID.unique())
+                    )
+
+                    if surface_density:
+                        surface_area = np.pi * np.gradient(radial_bins ** 2) * 1e-6
+                        profile_bootstrapped = profile_bootstrapped / surface_area
+
+                    if not cumulative:
+                        profile_bootstrapped = np.gradient(
+                            profile_bootstrapped, radial_bins, axis=1
+                        )
+
+                    ax.fill_between(
+                        radial_bins,
+                        *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
+                        color=gap2color((mag1 + mag2) / 2),
+                        label=f"${mag1}-{mag2}$",
+                        lw=0,
+                        alpha=0.7,
+                    )
+
+            except ValueError:
+                continue
+
+        ax.grid(alpha=0.15)
+        ax.text(
+            0.5,
+            0.92,
+            r"${} < \log(M_★/M_\odot) < {}$".format(m1, m2),
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=16,
+        )
+        ax.set_xlabel("Distance [pkpc]", fontsize=12)
+
+        ax.legend(
+            loc="upper left",
+            fontsize=12,
+            title=r"$\Delta m_{r,*}$",
+            title_fontsize=14,
+            framealpha=0,
+        )
+
+    ylabel = (
+        ("Normalized " if normalize else "")
+        + (r"$\Sigma_{\rm sat}$" if surface_density else r"$N_{\rm sat}$")
+        + ("(<r)" if cumulative else "(r)")
+        + (" [Mpc$^{-2}$]" if surface_density else "")
+    )
+
+    axes.flat[0].set_ylabel(ylabel, fontsize=12)
+
+    fig.tight_layout()
+    fig.savefig(results_dir / f"plots/profiles/{fname}.png")
+
+
 if __name__ == "__main__":
 
     hosts, sats = load_hosts_and_sats()
@@ -537,119 +715,111 @@ if __name__ == "__main__":
     # use bootstraps
     N_boot = 100
 
-    # host mass
-    # =========
+    # # host mass
+    # # =========
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts, sats, dmass=0.25, N_boot=N_boot, fname="radial_profile-by-host_mass"
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     dmass=0.25,
+    #     normalize=True,
+    #     N_boot=N_boot,
+    #     fname="normalized_radial_profile-by-host_mass",
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     dmass=0.25,
+    #     surface_density=True,
+    #     N_boot=N_boot,
+    #     fname="surface_density_profile-by-host_mass",
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     dmass=0.5,
+    #     cumulative=False,
+    #     N_boot=N_boot,
+    #     fname="radial_pdf-by-host_mass",
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     cumulative=False,
+    #     surface_density=True,
+    #     N_boot=N_boot,
+    #     fname="surface_density_pdf-by-host_mass",
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     cumulative=False,
+    #     normalize=True,
+    #     N_boot=N_boot,
+    #     fname="normalized_radial_pdf-by-host_mass",
+    # )
+    #
+    # # morphology
+    # # ==========
+    #
+    # plot_radial_profile_by_host_morphology(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 1),
+    #     cumulative=True,
+    #     N_boot=N_boot,
+    #     fname="radial_profile-by-host_morphology",
+    # )
+    #
+    # plot_radial_profile_by_host_morphology(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     cumulative=False,
+    #     N_boot=N_boot,
+    #     fname="radial_pdf-by-host_morphology",
+    # )
+    #
+    # plot_radial_profile_by_host_morphology(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     cumulative=False,
+    #     surface_density=True,
+    #     N_boot=N_boot,
+    #     fname="surface_density_pdf-by-host_morphology",
+    # )
+    #
+    # # more plots corrected for randoms
+    # # ================================
+    #
+    # plot_corrected_radial_profile_by_host_mass(
+    #     hosts,
+    #     hosts_rand,
+    #     sats,
+    #     sats_rand,
+    #     radial_bins=np.arange(36, 300, 1),
+    #     cumulative=True,
+    #     N_boot=N_boot,
+    #     fname="corrected_radial_profile-by-host_mass",
+    # )
 
-    plot_radial_profile_by_host_mass(
-        hosts, sats, dmass=0.25, N_boot=N_boot, fname="radial_profile-by-host_mass"
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        dmass=0.25,
-        normalize=True,
-        N_boot=N_boot,
-        fname="normalized_radial_profile-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        dmass=0.25,
-        surface_density=True,
-        N_boot=N_boot,
-        fname="surface_density_profile-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        dmass=0.5,
-        cumulative=False,
-        N_boot=N_boot,
-        fname="radial_pdf-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        cumulative=False,
-        surface_density=True,
-        N_boot=N_boot,
-        fname="surface_density_pdf-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        cumulative=False,
-        normalize=True,
-        N_boot=N_boot,
-        fname="normalized_radial_pdf-by-host_mass",
-    )
-
-    # morphology
-    # ==========
-
-    plot_radial_profile_by_host_morphology(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 1),
-        cumulative=True,
-        N_boot=N_boot,
-        fname="radial_profile-by-host_morphology",
-    )
-
-    plot_radial_profile_by_host_morphology(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        cumulative=False,
-        N_boot=N_boot,
-        fname="radial_pdf-by-host_morphology",
-    )
-
-    plot_radial_profile_by_host_morphology(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        cumulative=False,
-        surface_density=True,
-        N_boot=N_boot,
-        fname="surface_density_pdf-by-host_morphology",
-    )
-
-    # more plots corrected for randoms
-    # ================================
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 1),
-        cumulative=True,
-        N_boot=N_boot,
-        fname="corrected_radial_profile-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_morphology(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 1),
-        cumulative=True,
-        N_boot=N_boot,
-        fname="corrected_radial_profile-by-host_morphology",
-    )
-
-    plot_radial_profile_by_host_morphology(
-        hosts,
+    # magnitude gap
+    # =============
+    plot_radial_profile_by_magnitude_gap(
         sats,
         radial_bins=np.arange(36, 300, 1),
-        cumulative=True,
-        normalize=True,
         N_boot=N_boot,
-        fname="corrected_normalized_radial_profile-by-host_morphology",
+        fname="radial_profile-by-magnitude_gap",
     )

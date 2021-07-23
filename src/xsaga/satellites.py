@@ -323,6 +323,19 @@ def count_satellites_per_host(
     return hosts
 
 
+def compute_magnitude_gap(sats):
+    """Computes the r-band magnitude gap of host and brightest satellite.
+    """
+
+    sats["M_r"] = sats.r0 - cosmo.distmod(sats.z_NSA).value
+    sats["magnitude_gap"] = sats.M_r - sats.M_r_NSA
+
+    # only keep minimum value
+    sats["magnitude_gap"] = sats.groupby("NSAID").magnitude_gap.transform(np.min)
+
+    return sats
+
+
 if __name__ == "__main__":
 
     # load hosts
