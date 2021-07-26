@@ -2,6 +2,7 @@ data
 doc
 results
 models
+notebook
 images*
 .images*
 *.tar.gz
