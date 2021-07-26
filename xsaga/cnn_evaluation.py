@@ -13,7 +13,7 @@ from pathlib import Path
 from sklearn.metrics import purity, completeness, accuracy
 
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
 
 

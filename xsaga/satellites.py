@@ -35,7 +35,7 @@ cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 MAKE_PLOTS = False
 EXT = "png"
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
 
 

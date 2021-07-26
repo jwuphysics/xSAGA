@@ -21,7 +21,7 @@ from satellites import (
 
 MAKE_PLOTS = False
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
 
 

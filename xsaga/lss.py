@@ -20,7 +20,7 @@ from utils import mass2color, kpc2deg, deg2kpc
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
 
 
