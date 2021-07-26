@@ -1,8 +1,10 @@
 data
+doc
 results
 models
 images*
 .images*
+*.tar.gz
 
 .ipynb_checkpoints
 __pycache__
