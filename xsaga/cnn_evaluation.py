@@ -17,13 +17,29 @@ ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
 
 
+def load_saga_crossvalidation():
+    """Load the SAGA cross validation using the FL-hdxresnet34 model on 144x144 images,
+    generated on 2021-05-04. Note that columns are renamed here so as to be consistent
+    with the rest of the code base.
+    """
+
+    saga_cv_file = ROOT / "results/saga_cv.csv"
+    df = pd.read_csv(saga_cv_file, dtype={"OBJID": str})
+
+    # rename columns `SPEC_Z` and `pred_low_z` and remove temp column `kfold_split`
+    df = df.rename({"SPEC_Z": "Z", "pred_low_z": "p_CNN"}, axis=1)
+    df = df.drop("kfold_split", axis=1)
+
+    return df
+
+
 def get_top_metrics(df, N=None, p_CNN_threshold=None, z_cutoff=0.03):
     """Return a dictionary of CNN metrics for a cross-validated dataset with a given
     p_CNN threshold (equivalent to the top `N` predictions).
 
     Parameters
         df : pd.DataFrame
-            DataFrame containing the ground-truth redshifts in column `SPEC_Z` and
+            DataFrame containing the ground-truth redshifts in column `Z` and
             low-z predictions in column `p_CNN`.
         N : int or None
             The number of predictions to evaluate; this directly corresponds to a
@@ -42,12 +58,12 @@ def get_top_metrics(df, N=None, p_CNN_threshold=None, z_cutoff=0.03):
             the `geometric_mean` of the purity and completeness.
     """
 
-    df = df.sort_values(by="p_CNN", ascending=False).reset_index()
+    df['rank'] = df.p_CNN.rank(ascending=False)
 
-    q_true = Query(f"SPEC_Z < {z_cutoff}")
+    q_true = Query(f"Z < {z_cutoff}")
 
     if N is not None:
-        q_pred = Query(f"index < {N}")
+        q_pred = Query(f"rank < {N}")
     elif p_CNN_threshold is not None:
         q_pred = Query(f"p_CNN > p_CNN_threshold")
     else:
@@ -76,7 +92,7 @@ def plot_metrics(df, surface_area, figname="CNN_metrics.png"):
 
     Parameters
         df : pd.DataFrame
-            DataFrame containing the ground-truth redshifts in column `SPEC_Z` and
+            DataFrame containing the ground-truth redshifts in column `Z` and
             low-z predictions in column `p_CNN`.
         surface_area : float [deg^2]
             The area spanned by the data set, in units of square degrees.
@@ -119,9 +135,9 @@ def plot_metrics(df, surface_area, figname="CNN_metrics.png"):
     )
 
     surface_densities = [1, 2, 3, 5, 10, 15, 20, 30, 50, 100]
+    ax.set_xscale("log")
     ax.set_xticks(surface_densities)
     ax.set_xticklabels(surface_densities)
-    ax.set_xscale("log")
 
     ax.set_ylim(0, 1)
     ax.set_xlabel("Surface density [deg$^{-2}$]", fontsize=12)
@@ -130,8 +146,9 @@ def plot_metrics(df, surface_area, figname="CNN_metrics.png"):
     ax.grid(alpha=0.15)
     ax.legend(framealpha=0, loc="lower center")
 
+    fig.tight_layout()
     fig.savefig(results_dir / f"plots/{figname}")
-    
+
 
 def compare_north_and_south():
     """Compare p_CNN thresholds in the Legacy Survey North and South, which have
@@ -156,4 +173,12 @@ def compare_color(predictions, labels, gmr):
 
 
 if __name__ == "__main__":
-    pass
+
+    # load SAGA crossvalidation results
+    # =================================
+    saga_cv = load_saga_crossvalidation()
+
+    N_hosts = 89
+    saga_area = N_hosts * np.pi * 1 ** 2
+
+    plot_metrics(saga_cv, saga_area)
