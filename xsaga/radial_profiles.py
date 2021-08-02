@@ -361,9 +361,9 @@ def plot_corrected_radial_profile_by_host_mass(
     ylabel = (
         ("Normalized " if normalize else "")
         + (
-            r"$\big \[ \Sigma_{\rm sat} - \Sigma_{\rm rand} \big \]$"
+            r"$[ \Sigma_{\rm sat} - \Sigma_{\rm rand} ]$"
             if surface_density
-            else r"$\big \[ N_{\rm sat} - N_{\rm rand} \big \]$"
+            else r"$[ N_{\rm sat} - N_{\rm rand} ]$"
         )
         + ("(<r)" if cumulative else "(r)")
         + (" [Mpc$^{-2}$]" if surface_density else "")
@@ -800,20 +800,20 @@ if __name__ == "__main__":
     #     N_boot=N_boot,
     #     fname="surface_density_pdf-by-host_morphology",
     # )
-    #
-    # # more plots corrected for randoms
-    # # ================================
-    #
-    # plot_corrected_radial_profile_by_host_mass(
-    #     hosts,
-    #     hosts_rand,
-    #     sats,
-    #     sats_rand,
-    #     radial_bins=np.arange(36, 300, 1),
-    #     cumulative=True,
-    #     N_boot=N_boot,
-    #     fname="corrected_radial_profile-by-host_mass",
-    # )
+
+    # more plots corrected for randoms
+    # ================================
+
+    plot_corrected_radial_profile_by_host_mass(
+        hosts,
+        hosts_rand,
+        sats,
+        sats_rand,
+        radial_bins=np.arange(36, 300, 1),
+        cumulative=True,
+        N_boot=N_boot,
+        fname="corrected_radial_profile-by-host_mass",
+    )
 
     # magnitude gap
     # =============
