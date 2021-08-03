@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from astropy.cosmology import FlatLambdaCDM
 from sklearn.metrics import (
     confusion_matrix,
     precision_score,
@@ -21,9 +22,10 @@ from sklearn.metrics import (
 from easyquery import Query
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
+
+cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
 def load_saga_crossvalidation():
@@ -351,7 +353,17 @@ def compare_north_and_south():
 
 
 def plot_comparison_by_X(
-    df, X, X_min, X_max, delta_X, X_label, figname, K=4, z_thresh=0.03, p_cnn_thresh=0.5, count=True
+    df,
+    X,
+    X_min,
+    X_max,
+    delta_X,
+    X_label,
+    figname,
+    K=4,
+    z_thresh=0.03,
+    p_cnn_thresh=0.5,
+    count=True,
 ):
     """Compare metrics as a function of column X.
     """
@@ -451,7 +463,7 @@ def plot_comparison_by_X(
     if count:
         counts = np.array([q_true.count(q.filter(df)) for q in X_queries])
         for x, c in zip(X_bins + delta_X / 2, counts):
-            ax.text(x, 1.02, c, rotation=60, fontsize=8, color='k')
+            ax.text(x, 1.02, c, rotation=60, fontsize=8, color="k")
 
     ax.set_xlabel(X_label, fontsize=12)
     ax.set_ylim(0, 1)
@@ -460,7 +472,7 @@ def plot_comparison_by_X(
     ax.grid(alpha=0.15)
     ax.legend(
         framealpha=0,
-        loc="lower left" if X not in ("sb_r", 'DEC') else "lower right",
+        loc="lower left" if X not in ("sb_r", "DEC") else "lower right",
         fontsize=12,
     )
 
@@ -474,6 +486,7 @@ if __name__ == "__main__":
     # =================================
     saga_cv = load_saga_crossvalidation()
     saga_cv["ranking"] = saga_cv.p_CNN.rank(ascending=False)
+    saga_cv["M_r"] = saga_cv.r_mag - cosmo.distmod(z=saga_cv.Z)
 
     # N_hosts = 89
     # saga_area = N_hosts * np.pi * 1 ** 2
@@ -499,35 +512,65 @@ if __name__ == "__main__":
     # plot_confusion_matrix(saga_cv, p_cnn_thresh=0.5, figname="confusion-matrix.png")
     # plot_confusion_matrix(saga_cv, p_cnn_thresh=0.4, figname="confusion-matrix_0p4.png")
 
-    plot_comparison_by_X(
-        saga_cv,
-        X="r_mag",
-        X_min=14,
-        X_max=21,
-        delta_X=0.5,
-        X_label=r"$r_0$ [mag]",
-        figname="magnitude-comparison.png",
-    )
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="r_mag",
+    #     X_min=14,
+    #     X_max=21,
+    #     delta_X=0.5,
+    #     X_label=r"$r_0$ [mag]",
+    #     figname="magnitude-comparison.png",
+    # )
+    #
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="sb_r",
+    #     X_min=20,
+    #     X_max=26,
+    #     delta_X=0.5,
+    #     X_label=r"$\mu_{r,\rm eff}$ [mag arcsec$^{-2}$]",
+    #     figname="surface_brightness-comparison.png",
+    # )
+    #
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="gr",
+    #     X_min=-0.05,
+    #     X_max=0.9,
+    #     delta_X=0.1,
+    #     X_label=r"$(g-r)_0$ [mag]",
+    #     figname="gmr-comparison.png",
+    # )
+    #
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="rz",
+    #     X_min=-0.2,
+    #     X_max=0.8,
+    #     delta_X=0.1,
+    #     X_label=r"$(r-z)_0$ [mag]",
+    #     figname="rmz-comparison.png",
+    # )
 
-    plot_comparison_by_X(
-        saga_cv,
-        X="sb_r",
-        X_min=20,
-        X_max=26,
-        delta_X=0.5,
-        X_label=r"$\mu_{r,\rm eff}$ [mag arcsec$^{-2}$]",
-        figname="surface_brightness-comparison.png",
-    )
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="M_r",
+    #     X_min=-21,
+    #     X_max=-12,
+    #     delta_X=0.5,
+    #     X_label=r"$M_{r,0}$ [mag]",
+    #     figname="M_r-comparison.png",
+    # )
 
-    plot_comparison_by_X(
-        saga_cv,
-        X="gr",
-        X_min=0,
-        X_max=0.9,
-        delta_X=0.1,
-        X_label=r"$(g-r)_0$ [mag]",
-        figname="gmr-comparison.png",
-    )
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="Z",
+    #     X_min=0,
+    #     X_max=0.03,
+    #     delta_X=0.005,
+    #     X_label=r"$z$",
+    #     figname="redshift-comparison.png",
+    # )
 
     # note that these plots will raise warnings because RA/Dec are very unevenly
     # distributed, and the kfolds may contain zero ground truths -- resulting in
