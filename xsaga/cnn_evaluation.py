@@ -11,10 +11,8 @@ import numpy as np
 import pandas as pd
 
 from sklearn.metrics import (
-    accuracy_score,
-    completeness_score,
     confusion_matrix,
-    f1_score,
+    precision_score,
     recall_score,
     roc_auc_score,
     roc_curve,
@@ -190,7 +188,7 @@ def plot_metrics_multi(
     K=4,
     label_surface_density=False,
     surface_area=None,
-    figname="CNN_metrics_multi-k.png",
+    figname="CNN_metrics-multi_k.png",
 ):
     """Plot evaluation metrics for cross-validated dataset that spans a given
     surface area. See `get_top_metrics()` for more details.
@@ -277,10 +275,10 @@ def plot_metrics_multi(
         ax.set_xscale("linear")
 
     ax.set_ylim(0, 1)
-    ax.set_ylabel("Evaluation metric")
+    ax.set_ylabel("Evaluation metric", fontsize=12)
 
     ax.grid(alpha=0.15)
-    ax.legend(framealpha=0, loc="lower center")
+    ax.legend(framealpha=0, loc="lower center", fontsize=12)
 
     fig.tight_layout()
     fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
@@ -352,18 +350,122 @@ def compare_north_and_south():
     pass
 
 
-def compare_magnitude(predictions, labels, r):
-    """Compare metrics as a function of apparent magnitude.
+def plot_comparison_by_X(
+    df, X, X_min, X_max, delta_X, X_label, figname, K=4, z_thresh=0.03, p_cnn_thresh=0.5, count=True
+):
+    """Compare metrics as a function of column X.
     """
-    pass
 
+    q_true = Query(f"Z < {z_thresh}")
+    q_pred = Query(f"p_CNN > {p_cnn_thresh}")
 
-def compare_surface_brightness(predictions, labels, mu_eff):
-    pass
+    X_bins = np.arange(X_min, X_max, delta_X)
+    X_queries = [
+        Query(f"{X} >= {x1}", f"{X} < {x2}") for x1, x2 in zip(X_bins, X_bins + delta_X)
+    ]
 
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4), dpi=300)
 
-def compare_color(predictions, labels, gmr):
-    pass
+    completenesses = []
+    purities = []
+    for k in range(K):
+        k = k + 1
+
+        dfk = Query(f"kfold == {k}").filter(df)
+
+        # get the True/False mask for labels and predictions for each q (magnitude bin)
+        completeness = np.array(
+            [
+                recall_score(q_true.mask(q.filter(dfk)), q_pred.mask(q.filter(dfk)))
+                for q in X_queries
+            ]
+        )
+
+        purity = np.array(
+            [
+                precision_score(q_true.mask(q.filter(dfk)), q_pred.mask(q.filter(dfk)))
+                for q in X_queries
+            ]
+        )
+
+        completenesses.append(completeness)
+        purities.append(purity)
+
+    completenesses = np.array(completenesses)
+    purities = np.array(purities)
+    geometric_means = np.sqrt(completenesses * purities)
+
+    ax.plot(
+        X_bins + delta_X / 2,
+        completenesses.mean(0),
+        c="#ff6361",
+        lw=2,
+        label="Completeness" if k == K else "",
+        zorder=1,
+    )
+    ax.fill_between(
+        X_bins + delta_X / 2,
+        completenesses.mean(0) - completenesses.std(0),
+        completenesses.mean(0) + completenesses.std(0),
+        color="#ff6361",
+        lw=0,
+        zorder=1,
+        alpha=0.3,
+    )
+
+    ax.plot(
+        X_bins + delta_X / 2,
+        purities.mean(0),
+        c="#ffa600",
+        lw=2,
+        label="Purity" if k == K else "",
+        zorder=2,
+    )
+    ax.fill_between(
+        X_bins + delta_X / 2,
+        purities.mean(0) - purities.std(0),
+        purities.mean(0) + purities.std(0),
+        color="#ffa600",
+        lw=0,
+        zorder=2,
+        alpha=0.3,
+    )
+
+    ax.plot(
+        X_bins + delta_X / 2,
+        geometric_means.mean(0),
+        c="#003f5c",
+        lw=2,
+        label="Geometric mean" if k == K else "",
+        zorder=3,
+    )
+    ax.fill_between(
+        X_bins + delta_X / 2,
+        geometric_means.mean(0) - geometric_means.std(0),
+        geometric_means.mean(0) + geometric_means.std(0),
+        color="#003f5c",
+        lw=0,
+        zorder=3,
+        alpha=0.3,
+    )
+    if count:
+        counts = np.array([q_true.count(q.filter(df)) for q in X_queries])
+        for x, c in zip(X_bins + delta_X / 2, counts):
+            ax.text(x, 1.02, c, rotation=60, fontsize=8, color='k')
+
+    ax.set_xlabel(X_label, fontsize=12)
+    ax.set_ylim(0, 1)
+    ax.set_ylabel("Evaluation metric", fontsize=12)
+
+    ax.grid(alpha=0.15)
+    ax.legend(
+        framealpha=0,
+        loc="lower left" if X not in ("sb_r", 'DEC') else "lower right",
+        fontsize=12,
+    )
+
+    fig.tight_layout()
+    fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
 
 
 if __name__ == "__main__":
@@ -379,7 +481,7 @@ if __name__ == "__main__":
 
     # plot_metrics(saga_cv, label_surface_density=False, figname="saga_all.png")
     # plot_metrics_multi(
-    #     saga_cv, K=4, label_surface_density=False, figname="saga_all_multi-k.png"
+    #     saga_cv, K=4, label_surface_density=False, figname="saga_all-multi_k.png"
     # )
 
     # plot_metrics(
@@ -394,5 +496,57 @@ if __name__ == "__main__":
     #     figname="saga_r-above-19.png",
     # )
 
-    plot_confusion_matrix(saga_cv, p_cnn_thresh=0.5, figname="confusion-matrix_0p5.png")
-    plot_confusion_matrix(saga_cv, p_cnn_thresh=0.4, figname="confusion-matrix_0p4.png")
+    # plot_confusion_matrix(saga_cv, p_cnn_thresh=0.5, figname="confusion-matrix.png")
+    # plot_confusion_matrix(saga_cv, p_cnn_thresh=0.4, figname="confusion-matrix_0p4.png")
+
+    plot_comparison_by_X(
+        saga_cv,
+        X="r_mag",
+        X_min=14,
+        X_max=21,
+        delta_X=0.5,
+        X_label=r"$r_0$ [mag]",
+        figname="magnitude-comparison.png",
+    )
+
+    plot_comparison_by_X(
+        saga_cv,
+        X="sb_r",
+        X_min=20,
+        X_max=26,
+        delta_X=0.5,
+        X_label=r"$\mu_{r,\rm eff}$ [mag arcsec$^{-2}$]",
+        figname="surface_brightness-comparison.png",
+    )
+
+    plot_comparison_by_X(
+        saga_cv,
+        X="gr",
+        X_min=0,
+        X_max=0.9,
+        delta_X=0.1,
+        X_label=r"$(g-r)_0$ [mag]",
+        figname="gmr-comparison.png",
+    )
+
+    # note that these plots will raise warnings because RA/Dec are very unevenly
+    # distributed, and the kfolds may contain zero ground truths -- resulting in
+    # divide by zero errors (or UndefinedMetricWarning).
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="RA",
+    #     X_min=120,
+    #     X_max=240,
+    #     delta_X=10,
+    #     X_label=r"$RA [deg]",
+    #     figname="RA-comparison.png",
+    # )
+    # plot_comparison_by_X(
+    #     saga_cv,
+    #     X="DEC",
+    #     X_min=-30,
+    #     X_max=60,
+    #     delta_X=10,
+    #     X_label=r"$Dec [deg]",
+    #     figname="DEC-comparison.png",
+    # )
