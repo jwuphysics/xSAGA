@@ -1,6 +1,6 @@
 
 from fastai2.vision.all import *
-from deconvolution.models.deconv import FastDeconv # from `deconvolution` repo
+from .deconv import FastDeconv # from `deconvolution` repo
 
 class DeconvLayer(nn.Sequential):
     "Create a sequence of deconv (`ni` to `nf`) and ReLU/Mish (if `use_activ`) layers."
