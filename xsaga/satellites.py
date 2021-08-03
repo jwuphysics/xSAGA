@@ -269,9 +269,8 @@ def assign_satellites_to_hosts(
     )
 
     sats = sats.sort_values("mass_GSE", ascending=False).set_index("objID")
-    sats = Query("sep <= 300").filter(sats)
+    sats = Query("sep > 36", "sep <= 300").filter(sats)
     sats = sats[~sats.index.duplicated(keep="first")]
-    sats = Query("sep > 36").filter(sats)
 
     if savefig:
         fig, ax = plt.subplots(1, 1, figsize=(8, 3), dpi=300)

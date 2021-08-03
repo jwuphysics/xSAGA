@@ -15,8 +15,8 @@ class DeconvLayer(nn.Sequential):
         if act: layers.append(act)
         if xtra: layers.append(xtra)
         super().__init__(*layers)
-        
-        
+
+
 class XResNet_hybrid(nn.Sequential):
     """An xresnet-like architecture with deconv layers in the stem and Conv2d elsewhere."""
     @delegates(ResBlock)
@@ -49,7 +49,7 @@ class XResNet_hybrid(nn.Sequential):
             *[self.block(self.expansion, ni if i==0 else nf, nf, stride=stride if i==0 else 1,
                       sa=sa and i==(blocks-1), act_cls=self.act_cls, **kwargs)
               for i in range(blocks)])
-    
+
 def _xresnet_hybrid(pretrained, expansion, layers, **kwargs):
     return XResNet_hybrid(ResBlock, expansion, layers, **kwargs)
 
@@ -86,7 +86,7 @@ class ResBlock_deconv(Module):
         self.act = defaults.activation(inplace=True) if act_cls is defaults.activation else act_cls()
 
     def forward(self, x): return self.act(self.convpath(x) + self.idpath(x))
-    
+
 class XResNet_deconv(nn.Sequential):
     """An xresnet-like architecture with deconv layers throughout."""
     @delegates(ResBlock_deconv)
@@ -119,7 +119,7 @@ class XResNet_deconv(nn.Sequential):
             *[self.block(self.expansion, ni if i==0 else nf, nf, stride=stride if i==0 else 1,
                       sa=sa and i==(blocks-1), act_cls=self.act_cls, **kwargs)
               for i in range(blocks)])
-    
+
 def _xresnet_deconv(pretrained, expansion, layers, **kwargs):
     return XResNet_deconv(ResBlock_deconv, expansion, layers, **kwargs)
 
