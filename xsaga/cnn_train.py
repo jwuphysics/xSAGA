@@ -211,9 +211,81 @@ def predict(
     return all_preds
 
 
+def train_resnet(
+    df,
+    K=4,
+    bs=128,
+    n_epochs=10,
+    max_lr=1e-2,
+    img_dir="images-legacy_saga-2021-02-19",
+    version="2021-02-19",
+):
+    """Train the CNN using k-fold cross-validation.
+    """
+
+    df = df.sample(frac=1, random_state=seed).copy()
+    df["low_z"] = df.SPEC_Z < 0.03
+
+    kf = KFold(K)
+    df["kfold"] = -1
+
+    N = len(df)
+    df_folds = []
+
+    for k, [_, val_idx] in enumerate(kf.split(range(N))):
+
+        k = k + 1
+        df.loc[val_idx, "kfold"] = k
+        df["kfold_split"] = df.kfold == k
+
+        # load data
+        dblock = DataBlock(
+            blocks=(ImageBlock, CategoryBlock),
+            get_x=ColReader(["OBJID"], pref=f"{ROOT}/{img_dir}/", suff=".jpg"),
+            get_y=ColReader("low_z"),
+            splitter=ColSplitter("kfold_split"),
+            item_tfms=item_tfms,
+            batch_tfms=batch_tfms,
+        )
+
+        dls = ImageDataLoaders.from_dblock(dblock, df, path=ROOT, bs=bs)
+
+        learn = cnn_learner(dls, resnet34, pretrained=False)
+
+        # train
+        learn.fit_one_cycle(n_epochs, max_lr)
+
+        torch.save(
+            learn.model.state_dict(),
+            ROOT / f"models/saga_FL-hdxresnet34-sz{sz}_{version}_{k}-of-{K}.pth",
+        )
+
+        # get cross-validation predictions
+        p_low_z, true_low_z = learn.get_preds()
+
+        valid = learn.dls.valid.items.copy()
+        valid["pred_low_z"] = p_low_z[:, 1]
+
+        df_folds.append(valid)
+
+    results = pd.concat(df_folds)
+    results.drop("kfold_split", axis=1, inplace=True)
+
+    return results
+
+
 if __name__ == "__main__":
     saga = pd.read_csv(ROOT / "data/saga_redshifts_2021-02-19.csv", dtype=dtype_dict)
-    train(saga, n_epochs=1)
+
+    results = train(saga, n_epochs=10)
+    results.to_csv(
+        results_dir / "cnn-training/saga_FL-hdxresnet34-sz144_2021-02-19.csv"
+    )
+
+    results_resnet = train_resnet(saga, n_epochs=10)
+    results_resnet.to_csv(
+        results_dir / "cnn-training/saga_resnet34-sz144_2021-02-19.csv"
+    )
 
     # predict
     filenames = list(
