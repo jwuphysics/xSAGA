@@ -28,13 +28,13 @@ results_dir = ROOT / "results/xSAGA"
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 
-def load_saga_crossvalidation():
+def load_saga_crossvalidation(catalogname="saga-validation_FL-hdxresnet34.csv"):
     """Load the SAGA cross validation using the FL-hdxresnet34 model on 144x144 images,
     generated on 2021-08-03. Note that columns are renamed here so as to be consistent
     with the rest of the code base.
     """
 
-    saga_cv_file = results_dir / "cnn-training/saga-validation_FL-hdxresnet34.csv"
+    saga_cv_file = results_dir / f"cnn-training/{catalogname}"
     df = pd.read_csv(saga_cv_file, dtype={"OBJID": str})
 
     # rename columns `SPEC_Z` and `pred_low_z`
@@ -480,6 +480,47 @@ def plot_comparison_by_X(
     fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
 
 
+def plot_roc_curve(
+    df,
+    K=4,
+    color="#003f5c",
+    label="FL-hdxresnet34",
+    fig=None,
+    ax=None,
+    figname="roc-curve.png",
+):
+    """Plot one or more ROC curves.
+    """
+    if (fig is None) or (ax is None):
+        fig, ax = plt.subplots(1, 1, figsize=(5, 5), dpi=300)
+
+    for k in range(K):
+        k = k + 1
+        q = Query(f"kfold == {k}")
+
+        fpr, tpr, thresholds = roc_curve(q.filter(df).low_z, q.filter(df).p_CNN)
+        ax.plot(fpr, tpr, c=color, lw=1, alpha=0.5, zorder=1)
+
+    # plot mean trend and mean scores
+    score = roc_auc_score(df.low_z, df.p_CNN)
+    fpr, tpr, thresholds = roc_curve(df.low_z, df.p_CNN)
+
+    ax.plot(fpr, tpr, c=color, lw=3, zorder=5, label=f"{label}\n(AUC = {score:.3f})")
+
+    ax.set_xlabel("False Positive Rate", fontsize=12)
+    ax.set_ylabel("True Positive Rate", fontsize=12)
+
+    ax.grid(alpha=0.15)
+    ax.legend(loc="lower right", fontsize=12)
+
+    if figname is None:
+        return fig, ax
+    else:
+        ax.plot([0, 1], [0, 1], ls='--', lw=1, c='k')
+        fig.tight_layout()
+        fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
+
+
 if __name__ == "__main__":
 
     # load SAGA crossvalidation results
@@ -593,3 +634,31 @@ if __name__ == "__main__":
     #     X_label=r"$Dec [deg]",
     #     figname="DEC-comparison.png",
     # )
+
+    # Receiving Operator Characteristic curve
+    # ---------------------------------------
+
+    # start with p_sat from SAGA II
+    saga_psat = saga_cv.copy()
+    saga_psat["p_CNN"] = saga_psat.p_sat_approx
+    fig, ax = plot_roc_curve(
+        saga_psat, color="#7a5195", label=r"SAGA $p_{\rm sat}$", figname=None
+    )
+
+    # get resnet cross-validation and add to ROC curve
+    saga_resnet_cv = load_saga_crossvalidation(
+        catalogname="saga-validation_resnet34.csv"
+    )
+    fig, ax = plot_roc_curve(
+        saga_resnet_cv, color="#ef5675", label="resnet34", fig=fig, ax=ax, figname=None
+    )
+
+    # finally include highly optimized CNN
+    plot_roc_curve(
+        saga_cv,
+        color="#ffa600",
+        label="FL-hdxresnet34",
+        fig=fig,
+        ax=ax,
+        figname="roc-curve.png",
+    )
