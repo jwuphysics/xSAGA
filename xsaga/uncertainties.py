@@ -23,16 +23,16 @@ ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
 
 # bin choices
-r0_range = np.arange(13, 21.5, 0.5)
-sb_range = np.arange(19, 26.5, 0.5)
-gmr_range = np.arange(-0.1, 1.0, 0.1)
+r0_range = np.arange(13, 21.5, 1)
+sb_range = np.arange(19, 26.5, 1)
+gmr_range = np.arange(0.0, 0.95, 0.1)
 
 r0_grid, sb_grid, gmr_grid = np.meshgrid(
-    r0_range[:-1] + 0.25, sb_range[:-1] + 0.25, gmr_range[:-1] + 0.05
+    r0_range[:-1] + 0.5, sb_range[:-1] + 0.5, gmr_range[:-1] + 0.05
 )
 
-r0_bins = r0_range[:-1] + 0.25
-sb_bins = sb_range[:-1] + 0.25
+r0_bins = r0_range[:-1] + 0.5
+sb_bins = sb_range[:-1] + 0.5
 gmr_bins = gmr_range[:-1] + 0.05
 
 
@@ -95,7 +95,7 @@ def lowz_rate_model(params, r0, mu_eff, gmr):
 
 
 def lnlikelihood(params, X, y):
-    """Estimate the log likelihood for a model
+    """Estimate the log likelihood for the lowz_rate_model.
     """
 
     if np.shape(X)[0] == 3:
@@ -107,14 +107,27 @@ def lnlikelihood(params, X, y):
 
     rates = lowz_rate_model(params, r0, mu_eff, gmr)
 
-    rates = np.where(rates > 1e-10, rates, 1e-10)
-    rates = np.where(rates < 1 - 1e-10, rates, 1 - 1e-10)
+    rates = np.where(rates > 1e-8, rates, 1e-8)
+    rates = np.where(rates < 1 - 1e-8, rates, 1 - 1e-8)
 
     return np.sum(np.where(y, np.log(rates), np.log(1 - rates)))
 
 
 def fit_logistic_model(cv):
     """
+    Fits the logistic regression model given some cross-validated results. The input
+    `cv` must be a DataFrame containing the columns:
+        r_mag : float
+            extinction-corrected r magnitudes
+        sb_r : float
+            the extinction-corrected surface brightness using the r-band
+            half-light radius
+        gr : float
+            extinction-corrected g-r colors
+        low_z : bool
+            whether or not the redshift is at low-z (z<0.03)
+        p_CNN : float
+            CNN probabilities that each source is at low-z
     """
 
     X = np.array([cv.r_mag, cv.sb_r, cv.gr]).T
@@ -165,14 +178,17 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
         X_ = X_scaled
         y_ = y_true
         color = "#58508d"
+        label = "SAGA"
     elif statistic == "completeness":
         X_ = X_scaled[y_true]
         y_ = y_pred[y_true]
         color = "#ff6361"
+        label = "xSAGA"
     elif statistic == "purity":
         X_ = X_scaled[y_pred]
         y_ = y_true[y_pred]
         color = "#ffa600"
+        label = "xSAGA"
     else:
         raise ValueError("Statistic must be one of 'purity', 'completeness', or 'rate'")
 
@@ -197,15 +213,17 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
             return 2 * [np.sqrt(p * (1 - p) / N)]
 
         yerr = _wald_interval(p_data, N)
-        width = xbins[1] - xbins[0]
+        width = 0.95 * (xbins[1] - xbins[0])
 
-        ax.bar(xbins, p_data, width=width, alpha=0.5, color=color, label="xSAGA")
+        ax.bar(xbins, p_data, width=width, alpha=0.5, color=color, label=label)
         ax.errorbar(xbins, p_data, yerr=yerr, ls="none", color=color)
         ax.plot(xbins, p_model, c="k", label="model")
 
         ax.set_ylim(1e-2, 1)
         ax.set_yscale("log")
         ax.set_xlabel(xlabel, fontsize=12)
+        ax.grid(color="white", lw=0.5, alpha=0.5)
+
     axes.flat[0].set_ylabel(f"Low-$z$ {statistic}", fontsize=12)
     axes.flat[0].legend(fontsize=12)
     fig.tight_layout()
@@ -239,7 +257,7 @@ if __name__ == "__main__":
     cv = load_saga_crossvalidation()
     best_fit_params = fit_logistic_model(cv)
 
-    # print(best_fit_params)
+    print(best_fit_params)
 
     for statistic in ["rate", "completeness", "purity"]:
         plot_model_fit_statistic(
