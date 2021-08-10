@@ -5,17 +5,35 @@ Scripts for quantifying the uncertainties, biases, and errors in satellite catal
 """
 
 import numpy as np
-import pandas as pd
+from easyquery import Query
+from pathlib import Path
+
 from astropy.coordinates import SkyCoord
 from astropy.cosmology import FlatLambdaCDM
 import astropy.units as u
-from easyquery import Query
-from pathlib import Path
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from scipy.stats import binned_statistic_dd
+
+from cnn_evaluation import load_saga_crossvalidation
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
 ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
+
+# bin choices
+r0_range = np.arange(13, 21.5, 0.5)
+sb_range = np.arange(19, 26.5, 0.5)
+gmr_range = np.arange(-0.1, 1.0, 0.1)
+
+r0_grid, sb_grid, gmr_grid = np.meshgrid(
+    r0_range[:-1] + 0.25, sb_range[:-1] + 0.25, gmr_range[:-1] + 0.05
+)
+
+r0_bins = r0_range[:-1] + 0.25
+sb_bins = sb_range[:-1] + 0.25
+gmr_bins = gmr_range[:-1] + 0.05
 
 
 def probability_host_alignments(
@@ -59,24 +77,174 @@ def probability_host_alignments(
         return (q1 & q2 & ~q3).count(hosts) / len(hosts)
 
 
+def lowz_rate_model(params, r0, mu_eff, gmr):
+    """Computes the low-z rate using a logistic model.
+
+    Parameters:
+        params : 5-tuple
+            The model parameters `b0`, `b1`, `b2`, `b3`, and `Rmax`
+        X : 2d array-like of shape (3, N_data)
+            The data vector
+    """
+
+    b0, b1, b2, b3, Rmax = params
+
+    ell = b0 + b1 * r0 + b2 * mu_eff + b3 * gmr
+
+    return Rmax / (1 + np.exp(-ell))
+
+
+def lnlikelihood(params, X, y):
+    """Estimate the log likelihood for a model
+    """
+
+    if np.shape(X)[0] == 3:
+        r0, mu_eff, gmr = X
+    elif np.shape(X)[1] == 3:
+        r0, mu_eff, gmr = np.transpose(X)
+    else:
+        raise ValueError("The data `X` must contain vectors [r0, mu_eff, gmr]")
+
+    rates = lowz_rate_model(params, r0, mu_eff, gmr)
+
+    rates = np.where(rates > 1e-10, rates, 1e-10)
+    rates = np.where(rates < 1 - 1e-10, rates, 1 - 1e-10)
+
+    return np.sum(np.where(y, np.log(rates), np.log(1 - rates)))
+
+
+def fit_logistic_model(cv):
+    """
+    """
+
+    X = np.array([cv.r_mag, cv.sb_r, cv.gr]).T
+    X_scaled = (X - X.mean(0)) / X.std(0)
+    y_true = cv.low_z
+    y_pred = cv.p_CNN > 0.5
+
+    def _loss_func(*args):
+        return -1 * lnlikelihood(*args)
+
+    params_init = [0, 0, 0, 0, 0.8]
+    bounds = np.array(4 * [[-np.inf, np.inf]] + [[0, 1]])
+
+    lowz_params = dict()
+
+    lowz_params["rate"] = minimize(
+        _loss_func, params_init, args=(X_scaled, y_true), bounds=bounds
+    ).x
+    lowz_params["completeness"] = minimize(
+        _loss_func, params_init, args=(X_scaled[y_true], y_pred[y_true]), bounds=bounds
+    ).x
+    lowz_params["purity"] = minimize(
+        _loss_func, params_init, args=(X_scaled[y_pred], y_true[y_pred]), bounds=bounds
+    ).x
+
+    return lowz_params
+
+
+def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat.png"):
+    """Given data, fit parameters, and some desired statistic (`rate`, `purity`,
+    `completeness`, makes a plot)
+    """
+
+    X = np.array([cv.r_mag, cv.sb_r, cv.gr]).T
+    X_scaled = (X - X.mean(0)) / X.std(0)
+    y_true = cv.low_z
+    y_pred = cv.p_CNN > 0.5
+
+    bins_scaled = [
+        (r0_range - X.mean(0)[0]) / X.std(0)[0],
+        (sb_range - X.mean(0)[1]) / X.std(0)[1],
+        (gmr_range - X.mean(0)[2]) / X.std(0)[2],
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(9, 3), dpi=300, sharey=True)
+
+    if statistic == "rate":
+        X_ = X_scaled
+        y_ = y_true
+        color = "#58508d"
+    elif statistic == "completeness":
+        X_ = X_scaled[y_true]
+        y_ = y_pred[y_true]
+        color = "#ff6361"
+    elif statistic == "purity":
+        X_ = X_scaled[y_pred]
+        y_ = y_true[y_pred]
+        color = "#ffa600"
+    else:
+        raise ValueError("Statistic must be one of 'purity', 'completeness', or 'rate'")
+
+    binned_statistic_result = binned_statistic_dd(X_, y_, bins=bins_scaled)
+    lowz_rate = binned_statistic_result.statistic
+
+    model_preds = lowz_rate_model(params, *X_.T)
+    binned_statistic_result = binned_statistic_dd(X_, model_preds, bins=bins_scaled)
+    model_rate = binned_statistic_result.statistic
+
+    xbins = [r0_bins, sb_bins, gmr_bins]
+    xlabels = [r"$r_0$", r"$\mu_{r, \rm eff}$", r"$g-r$"]
+
+    for i, (ax, xbins, xlabel) in enumerate(zip(axes.flat, xbins, xlabels)):
+        axis = tuple(j for j in [0, 1, 2] if j != i)
+
+        p_data = np.nanmean(lowz_rate, axis=axis)
+        p_model = np.nanmean(model_rate, axis=axis)
+        N = np.isfinite(model_rate).sum(axis=axis)
+
+        def _wald_interval(p, N):
+            return 2 * [np.sqrt(p * (1 - p) / N)]
+
+        yerr = _wald_interval(p_data, N)
+        width = xbins[1] - xbins[0]
+
+        ax.bar(xbins, p_data, width=width, alpha=0.5, color=color, label="xSAGA")
+        ax.errorbar(xbins, p_data, yerr=yerr, ls="none", color=color)
+        ax.plot(xbins, p_model, c="k", label="model")
+
+        ax.set_ylim(1e-2, 1)
+        ax.set_yscale("log")
+        ax.set_xlabel(xlabel, fontsize=12)
+    axes.flat[0].set_ylabel(f"Low-$z$ {statistic}", fontsize=12)
+    axes.flat[0].legend(fontsize=12)
+    fig.tight_layout()
+
+    fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
+
+
 if __name__ == "__main__":
-    hosts = pd.read_parquet(results_dir / "hosts-nsa.parquet")
-    hosts_rand = pd.read_parquet(results_dir / "hosts_rand-nsa.parquet")
+    # hosts = pd.read_parquet(results_dir / "hosts-nsa.parquet")
+    # hosts_rand = pd.read_parquet(results_dir / "hosts_rand-nsa.parquet")
+    #
+    # p_host_chance = probability_host_alignments(hosts, different_redshifts=True)
+    # p_host_overlap = probability_host_alignments(hosts, different_redshifts=False)
+    # print(
+    #     f"The fraction of chance overlaps in real hosts is {p_host_chance:.4f} and\n"
+    #     f"the fraction same-redshift overlaps is {p_host_overlap:.4f}.\n"
+    # )
+    #
+    # p_host_rand_chance = probability_host_alignments(
+    #     hosts_rand, different_redshifts=True
+    # )
+    # p_host_rand_overlap = probability_host_alignments(
+    #     hosts_rand, different_redshifts=False
+    # )
+    # print(
+    #     f"The fraction of chance overlaps in random hosts is {p_host_rand_chance:.4f}\n"
+    #     f"and the fraction at similar redshifts is {p_host_rand_overlap:.4f}.\n"
+    # )
 
-    p_host_chance = probability_host_alignments(hosts, different_redshifts=True)
-    p_host_overlap = probability_host_alignments(hosts, different_redshifts=False)
-    print(
-        f"The fraction of chance overlaps in real hosts is {p_host_chance:.4f} and\n"
-        f"the fraction same-redshift overlaps is {p_host_overlap:.4f}.\n"
-    )
+    # modeling low-z rate, purity, and completeness
+    cv = load_saga_crossvalidation()
+    best_fit_params = fit_logistic_model(cv)
 
-    p_host_rand_chance = probability_host_alignments(
-        hosts_rand, different_redshifts=True
-    )
-    p_host_rand_overlap = probability_host_alignments(
-        hosts_rand, different_redshifts=False
-    )
-    print(
-        f"The fraction of chance overlaps in random hosts is {p_host_rand_chance:.4f}\n"
-        f"and the fraction at similar redshifts is {p_host_rand_overlap:.4f}.\n"
-    )
+    # print(best_fit_params)
+
+    for statistic in ["rate", "completeness", "purity"]:
+        plot_model_fit_statistic(
+            cv,
+            best_fit_params[statistic],
+            statistic,
+            figname=f"model_fit_lowz-{statistic}.png",
+        )
