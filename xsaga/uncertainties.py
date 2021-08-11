@@ -200,7 +200,11 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
     model_rate = binned_statistic_result.statistic
 
     xbins = [r0_bins, sb_bins, gmr_bins]
-    xlabels = [r"$r_0$", r"$\mu_{r, \rm eff}$", r"$g-r$"]
+    xlabels = [
+        r"$r_0$ [mag]",
+        r"$\mu_{r, \rm eff}$ [mag arcsec$^{-2}$]",
+        r"$g-r$ [mag]",
+    ]
 
     for i, (ax, xbins, xlabel) in enumerate(zip(axes.flat, xbins, xlabels)):
         axis = tuple(j for j in [0, 1, 2] if j != i)
