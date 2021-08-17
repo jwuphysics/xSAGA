@@ -5,6 +5,7 @@ Scripts for quantifying the uncertainties, biases, and errors in satellite catal
 """
 
 import numpy as np
+import pandas as pd
 from easyquery import Query
 from pathlib import Path
 
@@ -161,6 +162,7 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
     `completeness`, makes a plot)
     """
 
+    # scale photometric parameters and corresponding bins
     X = np.array([cv.r_mag, cv.sb_r, cv.gr]).T
     X_scaled = (X - X.mean(0)) / X.std(0)
     y_true = cv.low_z
@@ -172,6 +174,7 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
         (gmr_range - X.mean(0)[2]) / X.std(0)[2],
     ]
 
+    # prepare plots
     fig, axes = plt.subplots(1, 3, figsize=(9, 3), dpi=300, sharey=True)
 
     if statistic == "rate":
@@ -183,12 +186,12 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
         X_ = X_scaled[y_true]
         y_ = y_pred[y_true]
         color = "#ff6361"
-        label = "xSAGA"
+        label = "CNN"
     elif statistic == "purity":
         X_ = X_scaled[y_pred]
         y_ = y_true[y_pred]
         color = "#ffa600"
-        label = "xSAGA"
+        label = "CNN"
     else:
         raise ValueError("Statistic must be one of 'purity', 'completeness', or 'rate'")
 
@@ -221,7 +224,7 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
 
         ax.bar(xbins, p_data, width=width, alpha=0.5, color=color, label=label)
         ax.errorbar(xbins, p_data, yerr=yerr, ls="none", color=color)
-        ax.plot(xbins, p_model, c="k", label="model")
+        ax.plot(xbins, p_model, c="k", label="Model")
 
         ax.set_ylim(1e-2, 1)
         ax.set_yscale("log")
@@ -235,7 +238,148 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
     fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
 
 
+def correct_lowz_catalog(lowz, params):
+    """Returns correction factor based on purity and completeness models based on
+    photometric properties.
+
+    WARNING: this ends up dominated by very low-completeness and low-purity objects, so
+    it should not be used!
+
+    Parameters
+        lowz : pd.DataFrame
+            Dataframe of low-z objects, which must contain the columns `r0`, `mu_eff`,
+            or `gmr`. Can be sats or lowz catalog.
+        params : dict
+            Dictionary of best-fit model params returned by the function
+            `fit_logistic_model()``. Must have keys `purity` and `completeness`.
+    """
+
+    X = np.array([lowz.r0, lowz.mu_eff, lowz.gmr]).T
+    X_scaled = (X - X.mean(0)) / X.std(0)
+
+    P = lowz_rate_model(params["purity"], *X_scaled.T)
+    C = lowz_rate_model(params["completeness"], *X_scaled.T)
+
+    P = np.where(P > 0.1, P, 0.1)
+    C = np.where(P > 0.1, C, 0.1)
+
+    # F = 1 + C**-1 - P**-1
+    F = P / C
+    F_err = np.sqrt((1 - C) ** 2 + (1 - P) ** 2)
+
+    return F, F_err
+
+
+def plot_purity_completeness_radial_trends(
+    cv, saga_sats, saga_hosts, params, figname="purity_completeness_radial_trends"
+):
+    """Given the cross-validated data, SAGA satellite and host catalogs,
+    and best-fit model parameters from above, plots the radial and magnitude dependence
+    for candidates colored by the photometric model predictions for low-z rate,
+    purity, and completeness.
+    """
+    cv_coords = SkyCoord(cv.RA, cv.DEC, unit="deg")
+    s2_coords = SkyCoord(saga2_sats.RA, saga2_sats.DEC, unit="deg")
+
+    idx, sep, _ = s2_coords.match_to_catalog_sky(cv_coords)
+
+    df = pd.concat(
+        [
+            saga_sats.reset_index(),
+            cv.iloc[idx][["Z", "low_z", "p_CNN", "r_mag", "sb_r", "gr"]].reset_index(),
+        ],
+        axis=1,
+    )
+    df = df[sep < 10 * u.arcsec].copy()
+
+    predictions = dict()
+
+    for hostname, host in saga_hosts.set_index("INTERNAL_HOSTID", drop=True).iterrows():
+        host_coord = SkyCoord(host.RA, host.DEC, unit="deg")
+        sep = host_coord.separation(cv_coords)
+        max_angsep = ((0.3 / host.DIST) * u.rad).to(u.arcsec)
+        sub_cv = cv[sep < max_angsep].copy()
+        sub_cv["D_PROJ"] = sep[sep < max_angsep].to(u.rad).value * host.DIST * 1e3
+        predictions[hostname] = sub_cv
+
+    pred_df = pd.concat(predictions)
+
+    # include scaled photometric quantities and compute model predictions
+    pred_df["r_mag_scaled"] = (pred_df.r_mag - 19.30038351) / 1.63920353
+    pred_df["sb_r_scaled"] = (pred_df.sb_r - 22.23829513) / 1.60764197
+
+    pred_df["gr_scaled"] = (pred_df.gr - 0.97987122) / 1.16822956
+
+    pred_df["p_model_rate"] = lowz_rate_model(
+        params["rate"], pred_df.r_mag_scaled, pred_df.sb_r_scaled, pred_df.gr_scaled
+    )
+
+    pred_df["p_model_completeness"] = lowz_rate_model(
+        params["completeness"],
+        pred_df.r_mag_scaled,
+        pred_df.sb_r_scaled,
+        pred_df.gr_scaled,
+    )
+
+    pred_df["p_model_purity"] = lowz_rate_model(
+        params["purity"], pred_df.r_mag_scaled, pred_df.sb_r_scaled, pred_df.gr_scaled
+    )
+
+    # make plots
+    fig, axes = plt.subplots(
+        3, 1, sharex=True, constrained_layout=True, figsize=(8, 6), dpi=300
+    )
+
+    is_lowz = Query("low_z == True")
+    cnn_selected = Query("p_CNN > 0.5")
+
+    TP = (is_lowz & cnn_selected).filter(pred_df)
+    FP = (~is_lowz & cnn_selected).filter(pred_df)
+    FN = (is_lowz & ~cnn_selected).filter(pred_df)
+
+    for ax, metric, (df1, df2) in zip(
+        axes.flat, ["rate", "completeness", "purity"], [(TP, FP), (TP, FN), (TP, FP)]
+    ):
+
+        ax.scatter(
+            df2.D_PROJ,
+            df2.r_mag,
+            c=df2[f"p_model_{metric}"],
+            marker="x",
+            edgecolor="none",
+            vmin=0,
+            vmax=1,
+            cmap="viridis_r",
+        )
+
+        sc = ax.scatter(
+            df1.D_PROJ,
+            df1.r_mag,
+            c=df1[f"p_model_{metric}"],
+            vmin=0,
+            vmax=1,
+            cmap="viridis_r",
+            edgecolor="k",
+            marker="o",
+        )
+
+        ax.set_xlim(15, 300)
+        ax.set_ylim(12, 22)
+        ax.set_ylabel("$r_0$ [mag]", fontsize=12)
+        ax.grid(alpha=0.15)
+
+        ax.text(18, 20.7, f"Modeled {metric}", fontsize=14)
+    axes.flat[-1].set_xlabel("$D$ [pkpc]", fontsize=12)
+
+    fig.colorbar(sc, ax=axes.flat, aspect=50, pad=-0.01)
+    fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
+
+
 if __name__ == "__main__":
+
+    # estimate halo chance alignments
+    # ===============================
+
     # hosts = pd.read_parquet(results_dir / "hosts-nsa.parquet")
     # hosts_rand = pd.read_parquet(results_dir / "hosts_rand-nsa.parquet")
     #
@@ -258,15 +402,28 @@ if __name__ == "__main__":
     # )
 
     # modeling low-z rate, purity, and completeness
+    # =============================================
     cv = load_saga_crossvalidation()
     best_fit_params = fit_logistic_model(cv)
 
-    print(best_fit_params)
+    # print(best_fit_params)
 
-    for statistic in ["rate", "completeness", "purity"]:
-        plot_model_fit_statistic(
-            cv,
-            best_fit_params[statistic],
-            statistic,
-            figname=f"model_fit_lowz-{statistic}.png",
-        )
+    # for statistic in ["rate", "completeness", "purity"]:
+    #     plot_model_fit_statistic(
+    #         cv,
+    #         best_fit_params[statistic],
+    #         statistic,
+    #         figname=f"model_fit_lowz-{statistic}.png",
+    #     )
+
+    # # corrections to low-z
+    # # ====================
+    # sats = pd.read_parquet(results_dir / "sats-nsa_p0_5.parquet")
+    # F, F_err = correct_lowz_catalog(sats, best_fit_params)
+
+    # Checking radial trends
+    # ======================
+
+    saga2_sats = pd.read_csv(ROOT / "data/saga_stage2_sats.csv")
+    saga2_hosts = pd.read_csv(ROOT / "data/saga_stage2_hosts.csv")
+    plot_purity_completeness_radial_trends(cv, saga2_sats, saga2_hosts, best_fit_params)
