@@ -2,6 +2,8 @@
 John F. Wu
 2021-07-20
 
+--- DEPRECATED ---
+
 A collection of methods for creating catalogs of satellites around random
 hosts in order to estimate xSAGA backgrounds.
 """

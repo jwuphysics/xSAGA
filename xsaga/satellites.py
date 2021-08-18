@@ -322,6 +322,39 @@ def count_satellites_per_host(
     return hosts
 
 
+def count_corrected_satellites_per_host(
+    hosts,
+    sats,
+    column_name="n_corr_sats_in_300kpc",
+    completeness=0.600,
+    interloper_surface_density=2.34,
+    fname="corrected-satellite_counts_per_host",
+    savefig=False,
+):
+    """Computes the number of corrected satellites per host by dividing by a
+    completeness term and subtracting a number of interlopers that scales with
+    the surface area of the halo.
+    """
+
+    counts_col = "n_sats_in_300kpc"
+    counts = (
+        hosts[counts_col]
+        if counts_col in hosts.columns
+        else count_satellites_per_host(hosts, sats)[counts_col]
+    )
+
+    sq_deg_per_sq_kpc = (
+        cosmo.arcsec_per_kpc_proper(hosts.z_NSA).to(u.deg / u.kpc).value
+    ) ** 2
+    surface_area = np.pi * (300 ** 2 - 36 ** 2) * sq_deg_per_sq_kpc
+
+    corrected_counts = counts / completeness - interloper_surface_density * surface_area
+
+    hosts = hosts.join(corrected_counts.rename(column_name, axis=1), on='NSAID')
+
+    return hosts
+
+
 def compute_magnitude_gap(sats):
     """Computes the r-band magnitude gap of host and brightest satellite.
     """
@@ -425,30 +458,45 @@ if __name__ == "__main__":
         assert column_name in hosts.columns
     except AssertionError:
         sats_in_150kpc = Query("sep <= 150").filter(sats)
-        hosts = count_satellites_per_host(
+        hosts = count_corrected_satellites_per_host(
             hosts,
             sats_in_150kpc,
             column_name=column_name,
-            fname=f"{column_name}_per_host",
-            savefig=True,
         )
         hosts.to_parquet(hosts_file)
 
-    # count *complete* satellites per host
-    # ====================================
+    # count *bright* satellites per host (M_r < -15)
+    # ==============================================
     hosts_file = results_dir / "hosts-nsa.parquet"
-    column_name = "n_complete_sats_in_300kpc"
+    column_name = "n_bright_sats_in_300kpc"
     try:
         hosts = pd.read_parquet(hosts_file)
         assert column_name in hosts.columns
     except AssertionError:
         # compute absolute magnitude and select those within completeness limit
         sats["M_r"] = sats.r0 - cosmo.distmod(sats.z_NSA).value
-        complete_sats = Query("M_r < -15.0").filter(sats)
+        bright_sats = Query("M_r < -15.0").filter(sats)
 
         hosts = count_satellites_per_host(
             hosts,
-            complete_sats,
+            bright_sats,
+            column_name=column_name,
+            fname=f"{column_name}_per_host",
+            savefig=True,
+        )
+        hosts.to_parquet(hosts_file)
+
+    # correct number of sats
+    # ======================
+    hosts_file = results_dir / "hosts-nsa.parquet"
+    column_name = "n_corr_sats_in_300kpc"
+    try:
+        hosts = pd.read_parquet(hosts_file)
+        assert column_name in hosts.columns
+    except AssertionError:
+        hosts = count_satellites_per_host(
+            hosts,
+            sats,
             column_name=column_name,
             fname=f"{column_name}_per_host",
             savefig=True,
