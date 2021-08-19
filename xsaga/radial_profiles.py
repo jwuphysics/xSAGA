@@ -118,10 +118,32 @@ def compute_interloper_cdf(redshifts, radial_bins, interloper_surface_density=2.
     return interloper_surface_density * angular_surface_area
 
 
+def bootstrap_saga_cdf(radial_bins, N_boot=100):
+    """Download and open SAGA II sats catalog and return bootstrappedradial profile.
+    """
+    saga = pd.read_csv(ROOT / "data/saga_stage2_sats.csv")
+
+    N_SAGA = 36
+
+    boot_cdf_saga = (
+        bootstrap(
+            saga.D_PROJ,
+            bootfunc=lambda x: np.array([np.sum(x < r) for r in radial_bins]),
+            bootnum=N_boot,
+        )
+        / N_SAGA
+    )
+
+    SAGA_AT_36KPC = boot_cdf_saga.mean(axis=0)[np.argmin((radial_bins - 36) ** 2)]
+
+    return boot_cdf_saga - SAGA_AT_36KPC
+
+
 def plot_radial_profile_by_host_mass(
     hosts,
     sats,
     corrected=True,
+    include_saga=True,
     radial_bins=np.arange(36, 300, 1),
     cumulative=True,
     normalize=False,
@@ -156,6 +178,8 @@ def plot_radial_profile_by_host_mass(
         N_boot : int
             The number of bootstrap resamples (for estimating uncertainties).
             Can also be `None` if boostrapping is not wanted.
+        include_saga : bool
+            If true, then include the 16-84th percentile range for SAGA mean profile.
         mass_min : float
             The minimum host (log) mass.
         mass_max : float
@@ -180,7 +204,7 @@ def plot_radial_profile_by_host_mass(
                 profile = compute_radial_cdf(satellite_separations, radial_bins)
 
                 # either normalize satellite counts or divide by number of hosts
-                profile = profile / (q.count(sats) if normalize else q.count(hosts))
+                profile = profile / q.count(hosts)
 
                 # correct using completeness and interlopers
                 if corrected:
@@ -198,6 +222,9 @@ def plot_radial_profile_by_host_mass(
 
                 if not cumulative:
                     profile = np.gradient(profile, radial_bins)
+
+                if normalize:
+                    profile /= profile.max()
 
                 ax.plot(
                     radial_bins,
@@ -242,6 +269,9 @@ def plot_radial_profile_by_host_mass(
                         profile_bootstrapped, radial_bins, axis=1
                     )
 
+                if normalize:
+                    profile_bootstrapped /= profile_bootstrapped.max(1)[:, np.newaxis]
+
                 ax.fill_between(
                     radial_bins,
                     *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
@@ -253,6 +283,21 @@ def plot_radial_profile_by_host_mass(
 
         except ValueError:
             continue
+
+    if include_saga and cumulative and (not areal_density):
+        boot_saga_profile = bootstrap_saga_cdf(radial_bins=radial_bins, N_boot=100)
+
+        if normalize:
+            boot_saga_profile /= boot_saga_profile.max(1)[:, np.newaxis]
+
+        ax.fill_between(
+            radial_bins,
+            *np.quantile(boot_saga_profile, [0.16, 0.84], axis=0),
+            color="0.5",
+            lw=0,
+            alpha=0.5,
+            label="SAGA II",
+        )
 
     xlabel = "Distance [pkpc]"
     ylabel = (
@@ -329,7 +374,7 @@ def plot_radial_profile_by_host_morphology(
             `./results/xSAGA/plots/profiles/`.
     """
 
-    fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(12, 6), dpi=300, sharey=True)
+    fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(10, 5), dpi=300, sharey=True)
     mass_bins = np.arange(mass_min, mass_max, dmass)
 
     for sersic_n_range, ax in zip([sersic_n_low, sersic_n_high], [ax1, ax2]):
@@ -349,7 +394,7 @@ def plot_radial_profile_by_host_morphology(
                     profile = compute_radial_cdf(satellite_separations, radial_bins)
 
                     # either normalize satellite counts or divide by number of hosts
-                    profile = profile / (q.count(sats) if normalize else q.count(hosts))
+                    profile = profile / q.count(hosts)
 
                     # correct using completeness and interlopers
                     if corrected:
@@ -366,6 +411,9 @@ def plot_radial_profile_by_host_morphology(
 
                     if not cumulative:
                         profile = np.gradient(profile, radial_bins)
+
+                    if normalize:
+                        profile /= profile.max()
 
                     ax.plot(
                         radial_bins,
@@ -411,6 +459,11 @@ def plot_radial_profile_by_host_morphology(
                             profile_bootstrapped, radial_bins, axis=1
                         )
 
+                    if normalize:
+                        profile_bootstrapped /= profile_bootstrapped.max(1)[
+                            :, np.newaxis
+                        ]
+
                     ax.fill_between(
                         radial_bins,
                         *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
@@ -446,7 +499,7 @@ def plot_radial_profile_by_host_morphology(
     ax1.set_ylabel(ylabel, fontsize=12)
 
     legend_location = (
-        "upper right" if (areal_density and (not cumulative)) else "upper left"
+        "center right" if (areal_density and (not cumulative)) else "center left"
     )
     ax1.legend(loc=legend_location, fontsize=12, title="Host mass", title_fontsize=14)
 
@@ -537,11 +590,7 @@ def plot_radial_profile_by_magnitude_gap(
                     profile = compute_radial_cdf(satellite_separations, radial_bins)
 
                     # either normalize satellite counts or divide by number of hosts
-                    profile = profile / (
-                        q.count(sats)
-                        if normalize
-                        else len(q.filter(sats).NSAID.unique())
-                    )
+                    profile = profile / len(q.filter(sats).NSAID.unique())
 
                     # correct using completeness and interlopers
                     if corrected:
@@ -558,6 +607,9 @@ def plot_radial_profile_by_magnitude_gap(
 
                     if not cumulative:
                         profile = np.gradient(profile, radial_bins)
+
+                    if normalize:
+                        profile /= profile.max()
 
                     ax.plot(
                         radial_bins,
@@ -605,6 +657,11 @@ def plot_radial_profile_by_magnitude_gap(
                             profile_bootstrapped, radial_bins, axis=1
                         )
 
+                    if normalize:
+                        profile_bootstrapped /= profile_bootstrapped.max(1)[
+                            :, np.newaxis
+                        ]
+
                     ax.fill_between(
                         radial_bins,
                         *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
@@ -630,9 +687,9 @@ def plot_radial_profile_by_magnitude_gap(
 
         ax.legend(
             loc="upper left",
-            fontsize=12,
+            fontsize=14,
             title=r"$\Delta m_{r,*}$",
-            title_fontsize=14,
+            title_fontsize=16,
             framealpha=0,
         )
 
@@ -664,96 +721,96 @@ if __name__ == "__main__":
     # use bootstraps
     N_boot = 100
 
-    # # host mass
-    # # =========
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     corrected=True,
-    #     dmass=0.25,
-    #     N_boot=N_boot,
-    #     fname="radial_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     dmass=0.25,
-    #     normalize=True,
-    #     N_boot=N_boot,
-    #     fname="normalized_radial_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     dmass=0.25,
-    #     areal_density=True,
-    #     N_boot=N_boot,
-    #     fname="areal_density_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     dmass=0.5,
-    #     cumulative=False,
-    #     N_boot=N_boot,
-    #     fname="radial_pdf-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     areal_density=True,
-    #     N_boot=N_boot,
-    #     fname="areal_density_pdf-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     normalize=True,
-    #     N_boot=N_boot,
-    #     fname="normalized_radial_pdf-by-host_mass",
-    # )
-    #
-    # # morphology
-    # # ==========
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 1),
-    #     cumulative=True,
-    #     N_boot=N_boot,
-    #     fname="radial_profile-by-host_morphology",
-    # )
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     N_boot=N_boot,
-    #     fname="radial_pdf-by-host_morphology",
-    # )
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     areal_density=True,
-    #     N_boot=N_boot,
-    #     fname="areal_density_pdf-by-host_morphology",
-    # )
+    # host mass
+    # =========
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        corrected=True,
+        dmass=0.25,
+        N_boot=N_boot,
+        fname="radial_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        normalize=True,
+        N_boot=N_boot,
+        fname="normalized_radial_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        areal_density=True,
+        N_boot=N_boot,
+        fname="areal_density_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        dmass=0.5,
+        cumulative=False,
+        N_boot=N_boot,
+        fname="radial_pdf-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        areal_density=True,
+        N_boot=N_boot,
+        fname="areal_density_pdf-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        normalize=True,
+        N_boot=N_boot,
+        fname="normalized_radial_pdf-by-host_mass",
+    )
+
+    # morphology
+    # ==========
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 1),
+        cumulative=True,
+        N_boot=N_boot,
+        fname="radial_profile-by-host_morphology",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        N_boot=N_boot,
+        fname="radial_pdf-by-host_morphology",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        areal_density=True,
+        N_boot=N_boot,
+        fname="areal_density_pdf-by-host_morphology",
+    )
 
     # magnitude gap
     # =============
