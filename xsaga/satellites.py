@@ -32,7 +32,7 @@ from pathlib import Path
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
-MAKE_PLOTS = False
+MAKE_PLOTS = True
 EXT = "png"
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -372,6 +372,7 @@ if __name__ == "__main__":
 
     # load hosts
     # ==========
+    print("Loading NSA hosts")
     hosts_file = results_dir / "hosts-nsa.parquet"
     try:
         nsa = pd.read_parquet(hosts_file)
@@ -381,6 +382,7 @@ if __name__ == "__main__":
 
     # load lowz candidates
     # ====================
+    print("Loading low-z candidates")
     lowz_file = results_dir / "lowz-p0_5.parquet"
     try:
         lowz = pd.read_parquet(lowz_file)
@@ -391,6 +393,7 @@ if __name__ == "__main__":
     # make lowz scatterplots
     # ======================
     if MAKE_PLOTS:
+        print("Making low-z scatter plots")
         plot_satellite_positions(
             lowz,
             colored_by="gmr",
@@ -417,12 +420,17 @@ if __name__ == "__main__":
 
     # remove massive hosts from lowz catalog
     # ======================================
-    hosts = Query("z_NSA <= 0.03", "mass_GSE >= 9.5").filter(nsa)
+    print("Removing massive hosts and high-z hosts from low-z catalog")
+    hosts = Query("mass_GSE >= 9.5").filter(nsa)
 
     lowz, hosts_x_lowz = remove_hosts_from_lowz(hosts, lowz, savefig=MAKE_PLOTS)
 
+    hosts = Query("z_NSA <= 0.03").filter(hosts)
+    hosts.to_parquet(hosts_file)
+
     # identify (or load) satellites
     # =============================
+    print("Loading satellites")
     sats_file = results_dir / "sats-nsa_p0_5.parquet"
     try:
         sats = pd.read_parquet(sats_file)
@@ -434,6 +442,7 @@ if __name__ == "__main__":
 
     # count satellites per host
     # =========================
+    print("Counting satellites per host")
     hosts_file = results_dir / "hosts-nsa.parquet"
     column_name = "n_sats_in_300kpc"
     try:
@@ -451,6 +460,7 @@ if __name__ == "__main__":
 
     # count satellites within 150 kpc
     # ===============================
+    print("Counting satellites within 150 kpc")
     hosts_file = results_dir / "hosts-nsa.parquet"
     column_name = "n_sats_in_150kpc"
     try:
@@ -458,15 +468,18 @@ if __name__ == "__main__":
         assert column_name in hosts.columns
     except AssertionError:
         sats_in_150kpc = Query("sep <= 150").filter(sats)
-        hosts = count_corrected_satellites_per_host(
+        hosts = count_satellites_per_host(
             hosts,
             sats_in_150kpc,
             column_name=column_name,
+            fname=f"{column_name}_per_host",
+            savefig=True,
         )
         hosts.to_parquet(hosts_file)
 
     # count *bright* satellites per host (M_r < -15)
     # ==============================================
+    print("Counting bright satellites")
     hosts_file = results_dir / "hosts-nsa.parquet"
     column_name = "n_bright_sats_in_300kpc"
     try:
@@ -488,17 +501,16 @@ if __name__ == "__main__":
 
     # correct number of sats
     # ======================
+    print("Counting corrected number of satellites")
     hosts_file = results_dir / "hosts-nsa.parquet"
     column_name = "n_corr_sats_in_300kpc"
     try:
         hosts = pd.read_parquet(hosts_file)
         assert column_name in hosts.columns
     except AssertionError:
-        hosts = count_satellites_per_host(
+        hosts = count_corrected_satellites_per_host(
             hosts,
             sats,
             column_name=column_name,
-            fname=f"{column_name}_per_host",
-            savefig=True,
         )
         hosts.to_parquet(hosts_file)
