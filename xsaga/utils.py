@@ -30,7 +30,7 @@ deg2kpc = partial(_deg2kpc, z=0.03)
 kpc2deg = partial(_kpc2deg, z=0.03)
 
 
-def mass2color(mass, cmap=cmr.ember, mass_min=9.5, mass_max=11.5):
+def mass2color(mass, cmap=cmr.ember, mass_min=9.5, mass_max=11.0):
     """Convenience function for mapping a stellar mass, normalized to some mass range,
     to a color determined by colormap `cmap`.
     """
