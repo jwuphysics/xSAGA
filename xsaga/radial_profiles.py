@@ -20,6 +20,7 @@ from astropy import units as u
 from easyquery import Query
 from functools import partial
 from pathlib import Path
+from scipy.ndimage import gaussian_filter1d
 
 from utils import mass2color, gap2color
 from satellites import compute_magnitude_gap
@@ -139,6 +140,12 @@ def bootstrap_saga_cdf(radial_bins, N_boot=100):
     return boot_cdf_saga - SAGA_AT_36KPC
 
 
+def smooth(a, sigma=3, axis=-1, mode="nearest"):
+    """Smooth a 1d signal by convolution with a Gaussian kernel
+    """
+    return gaussian_filter1d(a, sigma, axis=axis, mode=mode)
+
+
 def plot_radial_profile_by_host_mass(
     hosts,
     sats,
@@ -149,6 +156,7 @@ def plot_radial_profile_by_host_mass(
     normalize=False,
     areal_density=False,
     N_boot=None,
+    sigma_smooth=None,
     mass_min=9.5,
     mass_max=11.0,
     dmass=0.5,
@@ -175,9 +183,11 @@ def plot_radial_profile_by_host_mass(
             Toggles whether to divide the curves by the total number of satellites
         areal_density : bool
             Toggles whether to divide by the annular area at each radius.
-        N_boot : int
+        N_boot : int or None
             The number of bootstrap resamples (for estimating uncertainties).
             Can also be `None` if boostrapping is not wanted.
+        sigma_smooth : float or None
+            The sigma for 1d Gaussian convolution. Can be None.
         include_saga : bool
             If true, then include the 16-84th percentile range for SAGA mean profile.
         mass_min : float
@@ -205,6 +215,9 @@ def plot_radial_profile_by_host_mass(
 
                 # either normalize satellite counts or divide by number of hosts
                 profile = profile / q.count(hosts)
+
+                if sigma_smooth is not None:
+                    profile = smooth(profile, sigma_smooth)
 
                 # correct using completeness and interlopers
                 if corrected:
@@ -241,9 +254,10 @@ def plot_radial_profile_by_host_mass(
                     bootnum=N_boot,
                 )
 
-                profile_bootstrapped = profile_bootstrapped / (
-                    q.count(sats) if normalize else q.count(hosts)
-                )
+                profile_bootstrapped = profile_bootstrapped / q.count(hosts)
+
+                if sigma_smooth is not None:
+                    profile_bootstrapped = smooth(profile_bootstrapped, sigma_smooth)
 
                 if corrected:
                     interloper_profile = compute_interloper_cdf(
@@ -328,6 +342,7 @@ def plot_radial_profile_by_host_morphology(
     normalize=False,
     areal_density=False,
     N_boot=None,
+    sigma_smooth=None,
     sersic_n_low=(0, 2.5),
     sersic_n_high=(3, 6),
     mass_min=9.5,
@@ -396,6 +411,9 @@ def plot_radial_profile_by_host_morphology(
                     # either normalize satellite counts or divide by number of hosts
                     profile = profile / q.count(hosts)
 
+                    if sigma_smooth is not None:
+                        profile = smooth(profile, sigma_smooth)
+
                     # correct using completeness and interlopers
                     if corrected:
                         interloper_profile = compute_interloper_cdf(
@@ -430,9 +448,12 @@ def plot_radial_profile_by_host_morphology(
                         bootnum=N_boot,
                     )
 
-                    profile_bootstrapped = profile_bootstrapped / (
-                        q.count(sats) if normalize else q.count(hosts)
-                    )
+                    profile_bootstrapped = profile_bootstrapped / q.count(hosts)
+
+                    if sigma_smooth is not None:
+                        profile_bootstrapped = smooth(
+                            profile_bootstrapped, sigma_smooth
+                        )
 
                     if corrected:
                         interloper_profile = compute_interloper_cdf(
@@ -515,6 +536,7 @@ def plot_radial_profile_by_magnitude_gap(
     normalize=False,
     areal_density=False,
     N_boot=None,
+    sigma_smooth=None,
     magnitude_gap_min=0,
     magnitude_gap_max=7,
     dgap=1,
@@ -592,6 +614,9 @@ def plot_radial_profile_by_magnitude_gap(
                     # either normalize satellite counts or divide by number of hosts
                     profile = profile / len(q.filter(sats).NSAID.unique())
 
+                    if sigma_smooth is not None:
+                        profile = smooth(profile, sigma_smooth)
+
                     # correct using completeness and interlopers
                     if corrected:
                         interloper_profile = compute_interloper_cdf(
@@ -626,11 +651,14 @@ def plot_radial_profile_by_magnitude_gap(
                         bootnum=N_boot,
                     )
 
-                    profile_bootstrapped = profile_bootstrapped / (
-                        q.count(sats)
-                        if normalize
-                        else len(q.filter(sats).NSAID.unique())
+                    profile_bootstrapped = profile_bootstrapped / len(
+                        q.filter(sats).NSAID.unique()
                     )
+
+                    if sigma_smooth is not None:
+                        profile_bootstrapped = smooth(
+                            profile_bootstrapped, sigma_smooth
+                        )
 
                     if corrected:
                         interloper_profile = compute_interloper_cdf(
@@ -721,36 +749,36 @@ if __name__ == "__main__":
     # use bootstraps
     N_boot = 100
 
-    # host mass
-    # =========
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        corrected=True,
-        dmass=0.25,
-        N_boot=N_boot,
-        fname="radial_profile-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        dmass=0.25,
-        normalize=True,
-        N_boot=N_boot,
-        fname="normalized_radial_profile-by-host_mass",
-    )
-
-    plot_radial_profile_by_host_mass(
-        hosts,
-        sats,
-        dmass=0.25,
-        areal_density=True,
-        N_boot=N_boot,
-        fname="areal_density_profile-by-host_mass",
-    )
-
+    # # host mass
+    # # =========
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     corrected=True,
+    #     dmass=0.25,
+    #     N_boot=N_boot,
+    #     fname="radial_profile-by-host_mass",
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     dmass=0.25,
+    #     normalize=True,
+    #     N_boot=N_boot,
+    #     fname="normalized_radial_profile-by-host_mass",
+    # )
+    #
+    # plot_radial_profile_by_host_mass(
+    #     hosts,
+    #     sats,
+    #     dmass=0.25,
+    #     areal_density=True,
+    #     N_boot=N_boot,
+    #     fname="areal_density_profile-by-host_mass",
+    # )
+    #
     plot_radial_profile_by_host_mass(
         hosts,
         sats,
@@ -780,43 +808,65 @@ if __name__ == "__main__":
         N_boot=N_boot,
         fname="normalized_radial_pdf-by-host_mass",
     )
+    #
+    # # morphology
+    # # ==========
+    #
+    # plot_radial_profile_by_host_morphology(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 1),
+    #     cumulative=True,
+    #     N_boot=N_boot,
+    #     fname="radial_profile-by-host_morphology",
+    # )
+    #
+    # plot_radial_profile_by_host_morphology(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     cumulative=False,
+    #     N_boot=N_boot,
+    #     fname="radial_pdf-by-host_morphology",
+    # )
+    #
+    # plot_radial_profile_by_host_morphology(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     cumulative=False,
+    #     areal_density=True,
+    #     N_boot=N_boot,
+    #     fname="areal_density_pdf-by-host_morphology",
+    # )
+    #
+    # # magnitude gap
+    # # =============
+    # plot_radial_profile_by_magnitude_gap(
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 1),
+    #     N_boot=N_boot,
+    #     fname="radial_profile-by-magnitude_gap",
+    # )
 
-    # morphology
-    # ==========
+    # exploring concentrations
+    # ========================
 
     plot_radial_profile_by_host_morphology(
         hosts,
         sats,
-        radial_bins=np.arange(36, 300, 1),
+        radial_bins=np.arange(36, 300, 10),
+        normalize=True,
         cumulative=True,
         N_boot=N_boot,
-        fname="radial_profile-by-host_morphology",
+        fname="normalized_radial_profile-by-host_morphology",
     )
 
-    plot_radial_profile_by_host_morphology(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        cumulative=False,
-        N_boot=N_boot,
-        fname="radial_pdf-by-host_morphology",
-    )
-
-    plot_radial_profile_by_host_morphology(
-        hosts,
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        cumulative=False,
-        areal_density=True,
-        N_boot=N_boot,
-        fname="areal_density_pdf-by-host_morphology",
-    )
-
-    # magnitude gap
-    # =============
     plot_radial_profile_by_magnitude_gap(
         sats,
-        radial_bins=np.arange(36, 300, 1),
+        radial_bins=np.arange(36, 300, 10),
+        normalize=True,
+        cumulative=True,
         N_boot=N_boot,
         fname="radial_profile-by-magnitude_gap",
     )
