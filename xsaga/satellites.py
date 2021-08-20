@@ -328,6 +328,7 @@ def count_corrected_satellites_per_host(
     column_name="n_corr_sats_in_300kpc",
     completeness=0.600,
     interloper_surface_density=2.34,
+    nonsatellite_volume_density=0.0142,
     fname="corrected-satellite_counts_per_host",
     savefig=False,
 ):
@@ -350,9 +351,42 @@ def count_corrected_satellites_per_host(
 
     corrected_counts = counts / completeness - interloper_surface_density * surface_area
 
-    hosts = hosts.join(corrected_counts.rename(column_name, axis=1), on='NSAID')
+    if nonsatellite_volume_density is not None:
+        N_unrelated_lowz = compute_nonsatellite_numbers(
+            hosts.z_NSA, volume_density=nonsatellite_volume_density
+        )
+        hosts = hosts.join(
+            pd.Series(N_unrelated_lowz, name="N_unrelated_lowz", index=hosts.index)
+        )
+
+        corrected_counts = corrected_counts - hosts.N_unrelated_lowz
+
+    hosts = hosts.join(corrected_counts.rename(column_name, axis=1), on="NSAID")
 
     return hosts
+
+
+def compute_nonsatellite_numbers(redshifts, delta_z=0.005, volume_density=0.0142):
+    """Compute the number of low-z galaxies that *aren't* satellites, for hosts
+    at given redshifts. `volume_density` should be in Mpc^-3.
+    """
+    z_upper = redshifts + delta_z
+    z_lower = redshifts - delta_z
+    z_upper = np.where(z_upper > 0.03, 0.03, z_upper)
+    z_lower = np.where(z_lower < 0, 0, z_lower)
+
+    total_volumes = (
+        cosmo.comoving_volume(0.03) - cosmo.comoving_volume(z_upper)
+    ) / 1.03 ** 3 + (cosmo.comoving_volume(z_lower)) / (1 + z_lower) ** 3
+    volumes = (
+        ((cosmo.kpc_proper_per_arcmin(hosts.z_NSA) / (300 * u.kpc)) ** -2)
+        .to(u.steradian)
+        .value
+        / (4 * np.pi)
+        * total_volumes
+    )
+
+    return volume_density * volumes
 
 
 def compute_magnitude_gap(sats):
@@ -504,13 +538,17 @@ if __name__ == "__main__":
     print("Counting corrected number of satellites")
     hosts_file = results_dir / "hosts-nsa.parquet"
     column_name = "n_corr_sats_in_300kpc"
-    try:
-        hosts = pd.read_parquet(hosts_file)
-        assert column_name in hosts.columns
-    except AssertionError:
-        hosts = count_corrected_satellites_per_host(
-            hosts,
-            sats,
-            column_name=column_name,
-        )
-        hosts.to_parquet(hosts_file)
+    # try:
+    #     hosts = pd.read_parquet(hosts_file)
+    #     assert column_name in hosts.columns
+    # except AssertionError:
+    #     hosts = count_corrected_satellites_per_host(
+    #         hosts, sats, column_name=column_name
+    #     )
+    #     hosts.to_parquet(hosts_file)
+    #
+    hosts.drop(column_name, axis=1, inplace=True)
+    hosts = count_corrected_satellites_per_host(
+        hosts, sats, column_name=column_name
+    )
+    hosts.to_parquet(hosts_file)
