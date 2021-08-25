@@ -17,6 +17,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.coordinates import SkyCoord
 from astropy.stats import bootstrap
 from astropy import units as u
+import cmasher as cmr
 from easyquery import Query
 from functools import partial
 from pathlib import Path
@@ -47,7 +48,7 @@ def load_hosts_and_sats():
 
 
 def isolate_hosts(
-    hosts, delta_mass=0.5, delta_z=0.003, delta_d=1.0, return_not_isolated=False
+    hosts, delta_mass=0.5, delta_z=0.005, delta_d=1.0, return_not_isolated=False
 ):
     """Remove hosts that have significantly more massive neighbors nearby.
 
@@ -233,8 +234,6 @@ def plot_radial_profile_by_host_mass(
             # compute sat cumulative profile or bootstrapped profile
             if N_boot is None:
                 profile = compute_radial_cdf(satellite_separations, radial_bins)
-
-                # either normalize satellite counts or divide by number of hosts
                 profile = profile / q.count(hosts)
 
                 if sigma_smooth is not None:
@@ -451,8 +450,6 @@ def plot_radial_profile_by_host_morphology(
                 # compute sat cumulative profile or bootstrapped profile
                 if N_boot is None:
                     profile = compute_radial_cdf(satellite_separations, radial_bins)
-
-                    # either normalize satellite counts or divide by number of hosts
                     profile = profile / q.count(hosts)
 
                     if sigma_smooth is not None:
@@ -597,6 +594,7 @@ def plot_radial_profile_by_host_morphology(
 
 
 def plot_radial_profile_by_magnitude_gap(
+    hosts,
     sats,
     radial_bins=np.arange(36, 300, 1),
     corrected=True,
@@ -678,8 +676,6 @@ def plot_radial_profile_by_magnitude_gap(
                 # compute sat cumulative profile or bootstrapped profile
                 if N_boot is None:
                     profile = compute_radial_cdf(satellite_separations, radial_bins)
-
-                    # either normalize satellite counts or divide by number of hosts
                     profile = profile / len(q.filter(sats).NSAID.unique())
 
                     if sigma_smooth is not None:
@@ -835,8 +831,10 @@ if __name__ == "__main__":
     sats = HOST_QUERY.filter(sats)
 
     # isolate hosts and sats
-    hosts = isolate_hosts(hosts, delta_mass=0.5, delta_z=0.003, delta_d=1.0)
+    hosts = isolate_hosts(hosts, delta_mass=0.0, delta_z=0.005, delta_d=1.0)
     sats = sats[sats.NSAID.isin(hosts.index)].copy()
+
+    print(len(hosts), len(sats))
 
     # use bootstraps
     N_boot = 100
@@ -844,15 +842,15 @@ if __name__ == "__main__":
     # # host mass
     # # =========
     #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     corrected=True,
-    #     dmass=0.25,
-    #     N_boot=N_boot,
-    #     fname="radial_profile-by-host_mass",
-    # )
-
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        corrected=True,
+        dmass=0.25,
+        N_boot=N_boot,
+        fname="radial_profile-by-host_mass",
+    )
+    #
     # plot_radial_profile_by_host_mass(
     #     hosts,
     #     sats,
@@ -904,14 +902,14 @@ if __name__ == "__main__":
     # # morphology
     # # ==========
     #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 1),
-    #     cumulative=True,
-    #     N_boot=N_boot,
-    #     fname="radial_profile-by-host_morphology",
-    # )
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 1),
+        cumulative=True,
+        N_boot=N_boot,
+        fname="radial_profile-by-host_morphology",
+    )
     #
     # plot_radial_profile_by_host_morphology(
     #     hosts,
@@ -931,16 +929,17 @@ if __name__ == "__main__":
     #     N_boot=N_boot,
     #     fname="areal_density_pdf-by-host_morphology",
     # )
-    #
-    # # magnitude gap
-    # # =============
-    # plot_radial_profile_by_magnitude_gap(
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 1),
-    #     N_boot=N_boot,
-    #     fname="radial_profile-by-magnitude_gap",
-    # )
-    #
+
+    # magnitude gap
+    # =============
+    plot_radial_profile_by_magnitude_gap(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 1),
+        N_boot=N_boot,
+        fname="radial_profile-by-magnitude_gap",
+    )
+
     # # exploring concentrations
     # # ========================
     #
@@ -954,11 +953,94 @@ if __name__ == "__main__":
     #     fname="normalized_radial_profile-by-host_morphology",
     # )
     #
-    plot_radial_profile_by_magnitude_gap(
-        sats,
-        radial_bins=np.arange(36, 300, 10),
-        normalize=False,
-        cumulative=True,
-        N_boot=N_boot,
-        fname="radial_profile-by-magnitude_gap",
+    # plot_radial_profile_by_magnitude_gap(
+    #     hosts,
+    #     sats,
+    #     radial_bins=np.arange(36, 300, 10),
+    #     normalize=False,
+    #     cumulative=True,
+    #     N_boot=N_boot,
+    #     fname="radial_profile-by-magnitude_gap",
+    # )
+
+    # radial profiles by brightest satellites
+    # =======================================
+
+    sats["r_abs"] = sats.r0 - cosmo.distmod(sats.z_NSA)
+    sats["magnitude_gap"] = sats.r_abs - sats.M_r_NSA
+
+    sats_subset = sats.join(
+        sats[sats.magnitude_gap > 0].groupby("NSAID").M_r.min().rename("M_r_sat"),
+        on="NSAID",
     )
+
+    hosts_subset = hosts.join(
+        sats_subset.set_index("NSAID", drop=True).M_r_sat, on="NSAID", how="left"
+    ).drop_duplicates()
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6), dpi=150, sharey=True)
+
+    N_boot = 30
+    radial_bins = np.arange(36, 300, 1)
+    mass_bins = np.arange(9.5, 11, 0.5)
+    M_r_sat_bins = np.arange(-20, -15, 1)
+
+    for ax, m1, m2 in zip(axes.flat, mass_bins, mass_bins + 0.5):
+        q_mass = Query(f"mass_GSE > {m1}", f"mass_GSE < {m2}")
+        for r1, r2 in zip(M_r_sat_bins, M_r_sat_bins + 1):
+            q = Query(f"M_r_sat > {r1}", f"M_r_sat < {r2}") & q_mass
+            satellite_separations = q.filter(sats_subset).sep.values
+
+            profile_bootstrapped = bootstrap(
+                satellite_separations,
+                bootfunc=partial(compute_radial_cdf, radial_bins=radial_bins),
+                bootnum=N_boot,
+            )
+
+            profile_bootstrapped = profile_bootstrapped / q.count(hosts_subset)
+
+            interloper_profile = compute_interloper_cdf(
+                q.filter(sats_subset).z_NSA,
+                radial_bins,
+                interloper_surface_density=2.34,
+            )
+
+            interloper_profile_bootstrapped = rng.choice(
+                interloper_profile, size=N_boot, replace=True
+            )
+
+            nonsatellite_profile = compute_nonsatellite_cdf(
+                hosts.loc[q.filter(sats_subset).NSAID].N_unrelated_lowz, radial_bins
+            )
+
+            nonsatellite_profile_bootstrapped = rng.choice(
+                nonsatellite_profile, size=N_boot, replace=True
+            )
+
+            profile_bootstrapped = (
+                profile_bootstrapped / 0.600
+                - interloper_profile_bootstrapped
+                - nonsatellite_profile_bootstrapped
+            )
+
+            # xSAGA
+            ax.fill_between(
+                radial_bins,
+                *np.quantile(profile_bootstrapped, [0.16, 0.84], axis=0),
+                color=mass2color(
+                    (r1 + r2) / 2, cmap=cmr.rainforest_r, mass_min=-21, mass_max=-15
+                ),
+                label=f"${r1: <.0f}$ to ${r2: <.0f}$",
+                lw=0,
+                alpha=0.7,
+                zorder=3,
+            )
+        ax.grid(alpha=0.15)
+        ax.set_xlabel("Distance [pkpc]", fontsize=12)
+
+    axes.flat[0].set_ylabel(r"$N_{\rm sat}(<r)$", fontsize=12)
+    axes.flat[0].legend(
+        loc="upper left", fontsize=12, title="Brightest satellite $M_r$"
+    )
+
+    fig.subplots_adjust(wspace=0.02)
