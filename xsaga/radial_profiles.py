@@ -114,10 +114,7 @@ def compute_interloper_cdf(redshifts, radial_bins, interloper_surface_density=2.
     """
     deg_per_kpc = cosmo.arcsec_per_kpc_proper(redshifts).to(u.deg / u.kpc).value
     angular_surface_area = np.array(
-        [
-            2 * np.pi * np.gradient((radial_bins * deg2kpc) ** 2)
-            for deg2kpc in deg_per_kpc
-        ]
+        [np.pi * (radial_bins * deg2kpc) ** 2 for deg2kpc in deg_per_kpc]
     )
 
     return interloper_surface_density * angular_surface_area
@@ -129,7 +126,7 @@ def compute_nonsatellite_cdf(N_unrelated_lowz, radial_bins):
     from the `satellites.py` script.
     """
 
-    surface_area = 2 * np.pi * np.gradient(radial_bins ** 2)
+    surface_area = np.pi * radial_bins ** 2
 
     return np.array(
         [
@@ -834,14 +831,14 @@ if __name__ == "__main__":
     hosts = isolate_hosts(hosts, delta_mass=0.0, delta_z=0.005, delta_d=1.0)
     sats = sats[sats.NSAID.isin(hosts.index)].copy()
 
-    print(len(hosts), len(sats))
+    print(len(hosts), len(sats), hosts.n_corr_sats_in_300kpc.sum())
 
     # use bootstraps
     N_boot = 100
 
-    # # host mass
-    # # =========
-    #
+    # host mass
+    # =========
+
     plot_radial_profile_by_host_mass(
         hosts,
         sats,
@@ -850,58 +847,58 @@ if __name__ == "__main__":
         N_boot=N_boot,
         fname="radial_profile-by-host_mass",
     )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     dmass=0.25,
-    #     normalize=True,
-    #     N_boot=N_boot,
-    #     fname="normalized_radial_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     dmass=0.25,
-    #     areal_density=True,
-    #     N_boot=N_boot,
-    #     fname="areal_density_profile-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     dmass=0.5,
-    #     cumulative=False,
-    #     N_boot=N_boot,
-    #     fname="radial_pdf-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     areal_density=True,
-    #     N_boot=N_boot,
-    #     fname="areal_density_pdf-by-host_mass",
-    # )
-    #
-    # plot_radial_profile_by_host_mass(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     normalize=True,
-    #     N_boot=N_boot,
-    #     fname="normalized_radial_pdf-by-host_mass",
-    # )
-    #
-    # # morphology
-    # # ==========
-    #
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        normalize=True,
+        N_boot=N_boot,
+        fname="normalized_radial_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        dmass=0.25,
+        areal_density=True,
+        N_boot=N_boot,
+        fname="areal_density_profile-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        dmass=0.5,
+        cumulative=False,
+        N_boot=N_boot,
+        fname="radial_pdf-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        areal_density=True,
+        N_boot=N_boot,
+        fname="areal_density_pdf-by-host_mass",
+    )
+
+    plot_radial_profile_by_host_mass(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        normalize=True,
+        N_boot=N_boot,
+        fname="normalized_radial_pdf-by-host_mass",
+    )
+
+    # morphology
+    # ==========
+
     plot_radial_profile_by_host_morphology(
         hosts,
         sats,
@@ -910,25 +907,25 @@ if __name__ == "__main__":
         N_boot=N_boot,
         fname="radial_profile-by-host_morphology",
     )
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     cumulative=False,
-    #     N_boot=N_boot,
-    #     fname="radial_pdf-by-host_morphology",
-    # )
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 20),
-    #     cumulative=False,
-    #     areal_density=True,
-    #     N_boot=N_boot,
-    #     fname="areal_density_pdf-by-host_morphology",
-    # )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        cumulative=False,
+        N_boot=N_boot,
+        fname="radial_pdf-by-host_morphology",
+    )
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 20),
+        cumulative=False,
+        areal_density=True,
+        N_boot=N_boot,
+        fname="areal_density_pdf-by-host_morphology",
+    )
 
     # magnitude gap
     # =============
@@ -940,28 +937,28 @@ if __name__ == "__main__":
         fname="radial_profile-by-magnitude_gap",
     )
 
-    # # exploring concentrations
-    # # ========================
-    #
-    # plot_radial_profile_by_host_morphology(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     normalize=True,
-    #     cumulative=True,
-    #     N_boot=N_boot,
-    #     fname="normalized_radial_profile-by-host_morphology",
-    # )
-    #
-    # plot_radial_profile_by_magnitude_gap(
-    #     hosts,
-    #     sats,
-    #     radial_bins=np.arange(36, 300, 10),
-    #     normalize=False,
-    #     cumulative=True,
-    #     N_boot=N_boot,
-    #     fname="radial_profile-by-magnitude_gap",
-    # )
+    # exploring concentrations
+    # ========================
+
+    plot_radial_profile_by_host_morphology(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        normalize=True,
+        cumulative=True,
+        N_boot=N_boot,
+        fname="normalized_radial_profile-by-host_morphology",
+    )
+
+    plot_radial_profile_by_magnitude_gap(
+        hosts,
+        sats,
+        radial_bins=np.arange(36, 300, 10),
+        normalize=False,
+        cumulative=True,
+        N_boot=N_boot,
+        fname="radial_profile-by-magnitude_gap",
+    )
 
     # radial profiles by brightest satellites
     # =======================================
@@ -978,7 +975,7 @@ if __name__ == "__main__":
         sats_subset.set_index("NSAID", drop=True).M_r_sat, on="NSAID", how="left"
     ).drop_duplicates()
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6), dpi=150, sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6), dpi=300, sharey=True)
 
     N_boot = 30
     radial_bins = np.arange(36, 300, 1)
@@ -988,6 +985,9 @@ if __name__ == "__main__":
     for ax, m1, m2 in zip(axes.flat, mass_bins, mass_bins + 0.5):
         q_mass = Query(f"mass_GSE > {m1}", f"mass_GSE < {m2}")
         for r1, r2 in zip(M_r_sat_bins, M_r_sat_bins + 1):
+            if r1 < -2 * m1 + 1:
+                continue
+
             q = Query(f"M_r_sat > {r1}", f"M_r_sat < {r2}") & q_mass
             satellite_separations = q.filter(sats_subset).sep.values
 
@@ -1037,10 +1037,23 @@ if __name__ == "__main__":
             )
         ax.grid(alpha=0.15)
         ax.set_xlabel("Distance [pkpc]", fontsize=12)
+        ax.legend(
+            loc="center left",
+            fontsize=14,
+            title="Brightest satellite $M_r$",
+            title_fontsize=16,
+            framealpha=0,
+        )
+        ax.text(
+            0.5,
+            0.92,
+            r"${} < \log(M_★/M_\odot) < {}$".format(m1, m2),
+            transform=ax.transAxes,
+            ha="center",
+            fontsize=16,
+        )
 
     axes.flat[0].set_ylabel(r"$N_{\rm sat}(<r)$", fontsize=12)
-    axes.flat[0].legend(
-        loc="upper left", fontsize=12, title="Brightest satellite $M_r$"
-    )
 
-    fig.subplots_adjust(wspace=0.02)
+    fig.tight_layout()
+    fig.savefig(results_dir / "plots/profiles/radial_profile-by-brightest_sat.png")

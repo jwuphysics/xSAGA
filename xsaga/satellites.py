@@ -333,8 +333,11 @@ def count_corrected_satellites_per_host(
     savefig=False,
 ):
     """Computes the number of corrected satellites per host by dividing by a
-    completeness term and subtracting a number of interlopers that scales with
-    the surface area of the halo.
+    completeness term and subtracting a number of interlopers and non-satellite
+    contaminants that scale with the surface area of the halo.
+
+    Note: nonsatellite_surface_density = 9.32 is an alternative method for estimating
+    non-satellite contaminants.
     """
 
     counts_col = "n_sats_in_300kpc"
@@ -538,17 +541,11 @@ if __name__ == "__main__":
     print("Counting corrected number of satellites")
     hosts_file = results_dir / "hosts-nsa.parquet"
     column_name = "n_corr_sats_in_300kpc"
-    # try:
-    #     hosts = pd.read_parquet(hosts_file)
-    #     assert column_name in hosts.columns
-    # except AssertionError:
-    #     hosts = count_corrected_satellites_per_host(
-    #         hosts, sats, column_name=column_name
-    #     )
-    #     hosts.to_parquet(hosts_file)
-    #
-    hosts.drop(column_name, axis=1, inplace=True)
-    hosts = count_corrected_satellites_per_host(
-        hosts, sats, column_name=column_name
-    )
-    hosts.to_parquet(hosts_file)
+    try:
+        hosts = pd.read_parquet(hosts_file)
+        assert column_name in hosts.columns
+    except AssertionError:
+        hosts = count_corrected_satellites_per_host(
+            hosts, sats, column_name=column_name
+        )
+        hosts.to_parquet(hosts_file)
