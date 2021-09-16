@@ -358,11 +358,11 @@ def count_corrected_satellites_per_host(
         N_unrelated_lowz = compute_nonsatellite_numbers(
             hosts.z_NSA, volume_density=nonsatellite_volume_density
         )
-        hosts = hosts.join(
-            pd.Series(N_unrelated_lowz, name="N_unrelated_lowz", index=hosts.index)
-        )
+        # hosts = hosts.join(
+        #     pd.Series(N_unrelated_lowz, name="N_unrelated_lowz", index=hosts.index)
+        # )
 
-        corrected_counts = corrected_counts - hosts.N_unrelated_lowz
+        corrected_counts = corrected_counts - N_unrelated_lowz
 
     hosts = hosts.join(corrected_counts.rename(column_name, axis=1), on="NSAID")
 
@@ -382,7 +382,7 @@ def compute_nonsatellite_numbers(redshifts, delta_z=0.005, volume_density=0.0142
         cosmo.comoving_volume(0.03) - cosmo.comoving_volume(z_upper)
     ) / 1.03 ** 3 + (cosmo.comoving_volume(z_lower)) / (1 + z_lower) ** 3
     volumes = (
-        ((cosmo.kpc_proper_per_arcmin(hosts.z_NSA) / (300 * u.kpc)) ** -2)
+        ((cosmo.kpc_proper_per_arcmin(redshifts) / (300 * u.kpc)) ** -2)
         .to(u.steradian)
         .value
         / (4 * np.pi)
