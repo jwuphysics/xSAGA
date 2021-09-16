@@ -360,12 +360,18 @@ def plot_comparison_by_X(
     delta_X,
     X_label,
     figname,
-    K=4,
     z_thresh=0.03,
     p_cnn_thresh=0.5,
-    count=True,
+    N_boot=100,
+    label="fraction",
 ):
     """Compare metrics as a function of column X.
+
+    If N_boot is an integer, then it will bootstrap resample each metric `N_boot` times.
+
+    The param `label` can be either "count" or "fraction", depending on whether the
+    total number or fraction of low-z galaxies should be labeled at the top of the
+    figure.
     """
 
     q_true = Query(f"Z < {z_thresh}")
@@ -378,47 +384,46 @@ def plot_comparison_by_X(
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 4), dpi=300)
 
-    completenesses = []
-    purities = []
-    for k in range(K):
-        k = k + 1
+    # get the True/False mask for labels and predictions for each q (magnitude bin)
+    def completeness_score_bootfunc(x):
+        return recall_score(q_true.mask(x), q_pred.mask(x))
 
-        dfk = Query(f"kfold == {k}").filter(df)
+    def purity_score_bootfunc(x):
+        return precision_score(q_true.mask(x), q_pred.mask(x))
 
-        # get the True/False mask for labels and predictions for each q (magnitude bin)
-        completeness = np.array(
+    boot_completeness = np.array(
+        [
             [
-                recall_score(q_true.mask(q.filter(dfk)), q_pred.mask(q.filter(dfk)))
-                for q in X_queries
+                completeness_score_bootfunc(q.filter(df).sample(frac=1, replace=True))
+                for _ in range(N_boot)
             ]
-        )
+            for q in X_queries
+        ]
+    )
 
-        purity = np.array(
+    boot_purity = np.array(
+        [
             [
-                precision_score(q_true.mask(q.filter(dfk)), q_pred.mask(q.filter(dfk)))
-                for q in X_queries
+                purity_score_bootfunc(q.filter(df).sample(frac=1, replace=True))
+                for _ in range(N_boot)
             ]
-        )
+            for q in X_queries
+        ]
+    )
 
-        completenesses.append(completeness)
-        purities.append(purity)
-
-    completenesses = np.array(completenesses)
-    purities = np.array(purities)
-    geometric_means = np.sqrt(completenesses * purities)
+    boot_geometric_mean = np.sqrt(boot_completeness * boot_purity)
 
     ax.plot(
         X_bins + delta_X / 2,
-        completenesses.mean(0),
+        boot_completeness.mean(1),
         c="#ff6361",
         lw=2,
-        label="Completeness" if k == K else "",
+        label="Completeness",
         zorder=1,
     )
     ax.fill_between(
         X_bins + delta_X / 2,
-        completenesses.mean(0) - completenesses.std(0),
-        completenesses.mean(0) + completenesses.std(0),
+        *np.quantile(boot_completeness, [0.16, 0.84], axis=1),
         color="#ff6361",
         lw=0,
         zorder=1,
@@ -427,16 +432,15 @@ def plot_comparison_by_X(
 
     ax.plot(
         X_bins + delta_X / 2,
-        purities.mean(0),
+        boot_purity.mean(1),
         c="#ffa600",
         lw=2,
-        label="Purity" if k == K else "",
+        label="Purity",
         zorder=2,
     )
     ax.fill_between(
         X_bins + delta_X / 2,
-        purities.mean(0) - purities.std(0),
-        purities.mean(0) + purities.std(0),
+        *np.quantile(boot_purity, [0.16, 0.84], axis=1),
         color="#ffa600",
         lw=0,
         zorder=2,
@@ -445,35 +449,41 @@ def plot_comparison_by_X(
 
     ax.plot(
         X_bins + delta_X / 2,
-        geometric_means.mean(0),
+        boot_geometric_mean.mean(1),
         c="#003f5c",
         lw=2,
-        label="Geometric mean" if k == K else "",
+        label="Geometric mean",
         zorder=3,
     )
     ax.fill_between(
         X_bins + delta_X / 2,
-        geometric_means.mean(0) - geometric_means.std(0),
-        geometric_means.mean(0) + geometric_means.std(0),
+        *np.quantile(boot_geometric_mean, [0.16, 0.84], axis=1),
         color="#003f5c",
         lw=0,
         zorder=3,
         alpha=0.3,
     )
-    if count:
+    if label == "fraction":
+        fracs = np.array([q_true.count(q.filter(df)) / q.count(df) for q in X_queries])
+        for x, l in zip(X_bins + delta_X / 2, fracs):
+            ax.text(x, 1.08, f"{l:.3f}", rotation=60, fontsize=10, color="k")
+    elif label == "count":
         counts = np.array([q_true.count(q.filter(df)) for q in X_queries])
-        for x, c in zip(X_bins + delta_X / 2, counts):
-            ax.text(x, 1.02, c, rotation=60, fontsize=8, color="k")
+        for x, l in zip(X_bins + delta_X / 2, counts):
+            ax.text(x, 1.08, l, rotation=60, fontsize=10, color="k")
+    else:
+        raise ValueError("Please specify a valid `label`.")
 
-    ax.set_xlabel(X_label, fontsize=12)
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("Evaluation metric", fontsize=12)
+    ax.set_xlabel(X_label, fontsize=16)
+    ax.set_ylim(-0.06, 1.06)
+    # ax.set_ylabel("Evaluation metric", fontsize=14)
+    ax.tick_params(which="both", labelsize=12)
 
     ax.grid(alpha=0.15)
     ax.legend(
         framealpha=0,
         loc="lower left" if X not in ("sb_r", "DEC") else "lower right",
-        fontsize=12,
+        fontsize=14,
     )
 
     fig.tight_layout()
@@ -516,7 +526,7 @@ def plot_roc_curve(
     if figname is None:
         return fig, ax
     else:
-        ax.plot([0, 1], [0, 1], ls='--', lw=1, c='k')
+        ax.plot([0, 1], [0, 1], ls="--", lw=1, c="k")
         fig.tight_layout()
         fig.savefig(results_dir / f"plots/cnn-evaluation/{figname}")
 
@@ -553,65 +563,65 @@ if __name__ == "__main__":
     # plot_confusion_matrix(saga_cv, p_cnn_thresh=0.5, figname="confusion-matrix.png")
     # plot_confusion_matrix(saga_cv, p_cnn_thresh=0.4, figname="confusion-matrix_0p4.png")
 
-    # plot_comparison_by_X(
-    #     saga_cv,
-    #     X="r_mag",
-    #     X_min=14,
-    #     X_max=21,
-    #     delta_X=0.5,
-    #     X_label=r"$r_0$ [mag]",
-    #     figname="magnitude-comparison.png",
-    # )
-    #
-    # plot_comparison_by_X(
-    #     saga_cv,
-    #     X="sb_r",
-    #     X_min=20,
-    #     X_max=26,
-    #     delta_X=0.5,
-    #     X_label=r"$\mu_{r,\rm eff}$ [mag arcsec$^{-2}$]",
-    #     figname="surface_brightness-comparison.png",
-    # )
-    #
-    # plot_comparison_by_X(
-    #     saga_cv,
-    #     X="gr",
-    #     X_min=-0.05,
-    #     X_max=0.9,
-    #     delta_X=0.1,
-    #     X_label=r"$(g-r)_0$ [mag]",
-    #     figname="gmr-comparison.png",
-    # )
-    #
-    # plot_comparison_by_X(
-    #     saga_cv,
-    #     X="rz",
-    #     X_min=-0.2,
-    #     X_max=0.8,
-    #     delta_X=0.1,
-    #     X_label=r"$(r-z)_0$ [mag]",
-    #     figname="rmz-comparison.png",
-    # )
+    plot_comparison_by_X(
+        saga_cv,
+        X="r_mag",
+        X_min=14,
+        X_max=21,
+        delta_X=0.5,
+        X_label=r"$r$ [mag]",
+        figname="magnitude-comparison.png",
+    )
 
-    # plot_comparison_by_X(
-    #     saga_cv,
-    #     X="M_r",
-    #     X_min=-21,
-    #     X_max=-12,
-    #     delta_X=0.5,
-    #     X_label=r"$M_{r,0}$ [mag]",
-    #     figname="M_r-comparison.png",
-    # )
+    plot_comparison_by_X(
+        saga_cv,
+        X="sb_r",
+        X_min=20,
+        X_max=26,
+        delta_X=0.5,
+        X_label=r"$\mu_{r,\rm eff}$ [mag arcsec$^{-2}$]",
+        figname="surface_brightness-comparison.png",
+    )
 
-    # plot_comparison_by_X(
-    #     saga_cv,
-    #     X="Z",
-    #     X_min=0,
-    #     X_max=0.03,
-    #     delta_X=0.005,
-    #     X_label=r"$z$",
-    #     figname="redshift-comparison.png",
-    # )
+    plot_comparison_by_X(
+        saga_cv,
+        X="gr",
+        X_min=-0.05,
+        X_max=0.9,
+        delta_X=0.1,
+        X_label=r"$g-r$ [mag]",
+        figname="gmr-comparison.png",
+    )
+
+    plot_comparison_by_X(
+        saga_cv,
+        X="rz",
+        X_min=-0.2,
+        X_max=0.8,
+        delta_X=0.1,
+        X_label=r"$r-z$ [mag]",
+        figname="rmz-comparison.png",
+    )
+
+    plot_comparison_by_X(
+        saga_cv,
+        X="M_r",
+        X_min=-21,
+        X_max=-12,
+        delta_X=0.5,
+        X_label=r"$M_{r}$ [mag]",
+        figname="M_r-comparison.png",
+    )
+
+    plot_comparison_by_X(
+        saga_cv,
+        X="Z",
+        X_min=0,
+        X_max=0.03,
+        delta_X=0.005,
+        X_label=r"$z$",
+        figname="redshift-comparison.png",
+    )
 
     # note that these plots will raise warnings because RA/Dec are very unevenly
     # distributed, and the kfolds may contain zero ground truths -- resulting in
@@ -639,26 +649,26 @@ if __name__ == "__main__":
     # ---------------------------------------
 
     # start with p_sat from SAGA II
-    saga_psat = saga_cv.copy()
-    saga_psat["p_CNN"] = saga_psat.p_sat_approx
-    fig, ax = plot_roc_curve(
-        saga_psat, color="#7a5195", label=r"SAGA $p_{\rm sat}$", figname=None
-    )
-
-    # get resnet cross-validation and add to ROC curve
-    saga_resnet_cv = load_saga_crossvalidation(
-        catalogname="saga-validation_resnet34.csv"
-    )
-    fig, ax = plot_roc_curve(
-        saga_resnet_cv, color="#ef5675", label="resnet34", fig=fig, ax=ax, figname=None
-    )
-
-    # finally include highly optimized CNN
-    plot_roc_curve(
-        saga_cv,
-        color="#ffa600",
-        label="FL-hdxresnet34",
-        fig=fig,
-        ax=ax,
-        figname="roc-curve.png",
-    )
+    # saga_psat = saga_cv.copy()
+    # saga_psat["p_CNN"] = saga_psat.p_sat_approx
+    # fig, ax = plot_roc_curve(
+    #     saga_psat, color="#7a5195", label=r"SAGA $p_{\rm sat}$", figname=None
+    # )
+    #
+    # # get resnet cross-validation and add to ROC curve
+    # saga_resnet_cv = load_saga_crossvalidation(
+    #     catalogname="saga-validation_resnet34.csv"
+    # )
+    # fig, ax = plot_roc_curve(
+    #     saga_resnet_cv, color="#ef5675", label="resnet34", fig=fig, ax=ax, figname=None
+    # )
+    #
+    # # finally include highly optimized CNN
+    # plot_roc_curve(
+    #     saga_cv,
+    #     color="#ffa600",
+    #     label="FL-hdxresnet34",
+    #     fig=fig,
+    #     ax=ax,
+    #     figname="roc-curve.png",
+    # )
