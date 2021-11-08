@@ -204,7 +204,7 @@ def plot_model_fit_statistic(cv, params, statistic, figname="model_fit_lowz-stat
 
     xbins = [r0_bins, sb_bins, gmr_bins]
     xlabels = [
-        r"$r_0$ [mag]",
+        r"$r$ [mag]",
         r"$\mu_{r, \rm eff}$ [mag arcsec$^{-2}$]",
         r"$g-r$ [mag]",
     ]
@@ -279,7 +279,7 @@ def plot_purity_completeness_radial_trends(
     purity, and completeness.
     """
     cv_coords = SkyCoord(cv.RA, cv.DEC, unit="deg")
-    s2_coords = SkyCoord(saga2_sats.RA, saga2_sats.DEC, unit="deg")
+    s2_coords = SkyCoord(saga_sats.RA, saga_sats.DEC, unit="deg")
 
     idx, sep, _ = s2_coords.match_to_catalog_sky(cv_coords)
 
@@ -365,7 +365,7 @@ def plot_purity_completeness_radial_trends(
 
         ax.set_xlim(15, 300)
         ax.set_ylim(12, 22)
-        ax.set_ylabel("$r_0$ [mag]", fontsize=12)
+        ax.set_ylabel("$r$ [mag]", fontsize=12)
         ax.grid(alpha=0.15)
 
         ax.text(18, 20.7, f"Modeled {metric}", fontsize=14)

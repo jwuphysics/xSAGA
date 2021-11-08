@@ -269,13 +269,13 @@ def assign_satellites_to_hosts(
     )
 
     sats = sats.sort_values("mass_GSE", ascending=False).set_index("objID")
-    sats = Query("sep > 36", "sep <= 300").filter(sats)
+    sats = Query(f"sep > {sep_min}", f"sep <= {sep_max}").filter(sats)
     sats = sats[~sats.index.duplicated(keep="first")]
 
     if savefig:
         fig, ax = plt.subplots(1, 1, figsize=(8, 3), dpi=300)
-        ax.hist(sep, bins=100, range=[0, 300], label="All low-$z$")
-        ax.hist(sats.sep, bins=100, range=[0, 300], label="Satellites")
+        ax.hist(sep, bins=100, range=[0, sep_max], label="All low-$z$")
+        ax.hist(sats.sep, bins=100, range=[0, sep_max], label="Satellites")
         ax.set_xlabel("Distance [pkpc]")
         ax.set_ylabel("Number")
         ax.grid(alpha=0.2)
@@ -327,7 +327,7 @@ def count_corrected_satellites_per_host(
     sats,
     column_name="n_corr_sats_in_300kpc",
     completeness=0.600,
-    interloper_surface_density=2.34,
+    interloper_surface_density=3.04,
     nonsatellite_volume_density=0.0142,
     fname="corrected-satellite_counts_per_host",
     savefig=False,

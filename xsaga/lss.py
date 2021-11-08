@@ -9,9 +9,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from astropy.coordinates import SkyCoord
 from astroML.correlation import bootstrap_two_point_angular
 from astropy.cosmology import FlatLambdaCDM
-
+from astropy.stats import bootstrap
+import astropy.units as u
 import cmasher as cmr
 from easyquery import Query
 from pathlib import Path
@@ -19,6 +21,7 @@ from pathlib import Path
 from utils import mass2color, kpc2deg, deg2kpc
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
+rng = np.random.RandomState(42)
 
 ROOT = Path(__file__).resolve().parent.parent
 results_dir = ROOT / "results/xSAGA"
@@ -395,6 +398,58 @@ def plot_angular_two_point_sats_by_absolute_magnitude(
     return
 
 
+def compute_nonsatellite_surface_density(
+    lowz,
+    N_rand=10000,
+    N_boot=100,
+    ra_range=[120, 160],
+    dec_range=[0, 50],
+    radius=0.3 * u.deg,
+):
+    """Draw random circles on the sky (random hosts) and return the bootstrapped median
+    surface density of probable low-z candidates. The default RA and Dec range
+    avoid the Coma and Virgo clusters.
+    """
+
+    ra_min, ra_max = ra_range
+    dec_min, dec_max = dec_range
+
+    ra_rand = (rng.random(size=N_rand)) * (ra_max - ra_min) + ra_min
+    dec_rand = np.rad2deg(
+        np.pi / 2
+        - np.arccos(rng.random(size=N_rand) * np.deg2rad(dec_max - dec_min) + dec_min)
+    )
+
+    rand_coords = SkyCoord(ra_rand, dec_rand, unit="deg")
+    lowz_coords = SkyCoord(lowz.ra, lowz.dec, unit="deg")
+
+    idx_lowz, _, _, _ = lowz_coords.search_around_sky(rand_coords, radius)
+
+    N_lowz_per_rand = np.array([np.sum(i == idx_lowz) for i in np.arange(N_rand)])
+
+    boot_lowz_surface_density = bootstrap(
+        N_lowz_per_rand / (np.pi * (radius.value) ** 2),
+        bootfunc=np.mean,
+        bootnum=N_boot,
+    )
+
+    return boot_lowz_surface_density.mean()
+
+
+# def plot_image_grid(df, mask, img_dir="", nrows=1, ncols=4, seed=seed):
+#     """Plot a grid of images selected randomly.
+#     """
+#
+#     fnames = df[mask].sample(N=nrows*ncols, random_state=seed).OBJID
+#
+#     images = np.array([np.asarray(imread(fname)) for img in fnames])
+#
+#     fig = plt.figure(figsize=(4.0, 4.0))
+#     grid = ImageGrid(fig, 111, nrows_ncols=(nrows, ncols), axes_pad=0.05)
+#
+#     for ax, im in zip(grid, images):
+
+
 if __name__ == "__main__":
     # plot_angular_two_point_lowz()
     # plot_angular_two_point_sats_and_hosts()
@@ -403,4 +458,8 @@ if __name__ == "__main__":
     # plot_angular_two_point_sats_by_absolute_magnitude()
 
     # catalog_redshift_clustering_positions()
-    plot_redshift_clustering()
+    # plot_redshift_clustering()
+
+    lowz = pd.read_parquet(results_dir / "lowz-p0_5.parquet")
+    lowz_surface_density = compute_nonsatellite_surface_density(lowz)
+    print(lowz_surface_density)
