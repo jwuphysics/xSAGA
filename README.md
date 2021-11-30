@@ -7,8 +7,7 @@
 We train a convolutional neural network (CNN) to distinguish low-redshift (*z* < 0.03) galaxies from the more numerous high-redshift objects. Each galaxy is given a CNN prediction (*p*<sub>CNN</sub>) betwen 0 and 1 that encodes how likely its redshift is *z* < 0.03. 
 
 <p float="center">
-  <img align="center" src="assets/saga-examples.png" width=480px alt="Examples image cutouts of xSAGA galaxies. Part of Figure 1 from the xSAGA I paper."/>
-  <img align="center" src="assets/xsaga-examples.png" width=480px alt="Examples image cutouts of xSAGA galaxies. Part of Figure 1 from the xSAGA I paper."/> 
+  <img align="center" src="assets/examples.png" alt="Examples image cutouts of SAGA and xSAGA galaxies. Figure 1 from the xSAGA I paper."/>
 </p>
 
 ## Data
