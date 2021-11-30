@@ -1,7 +1,5 @@
 # xSAGA: Extending the SAGA Survey
 
-<img align="center" src="assets/ngc3044.png"/>  
-
 ## Identifying low-redshift galaxies with CNNs
 
 We train a convolutional neural network (CNN) to distinguish low-redshift (*z* < 0.03) galaxies from the more numerous high-redshift objects. Each galaxy is given a CNN prediction (*p*<sub>CNN</sub>) betwen 0 and 1 that encodes how likely its redshift is *z* < 0.03. 
@@ -53,6 +51,10 @@ Additional helper scripts are located in `src/`.
 
 
 # Citation
+
+The paper is titled: "Extending the SAGA Survey (xSAGA) I: Satellite Radial Profiles as a Function of Host Galaxy Properties."
+
+The authors are: **John F. Wu (STScI)**, J. E. G. Peek (STScI/JHU), Erik J. Tollerud (STScI), Yao-Yuan Mao (Rutgers), Ethan O. Nadler (Carnegie/USC), Marla Geha (Yale), Risa H. Wechsler (Stanford/KIPAC/SLAC), Nitya Kallivayalil (U. Virginia), Benjamin J. Weiner (Steward/Arizona)
 
 ```
 @ARTICLE{xSAGA2021,
