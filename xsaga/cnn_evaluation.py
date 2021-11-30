@@ -1,6 +1,5 @@
 """
-John F. Wu
-2021-07-21
+John F. Wu (2021)
 
 Scripts for evaluating CNN performance using SAGA data.
 """

@@ -1,6 +1,5 @@
 """
-John F. Wu
-2021-07-20
+John F. Wu (2021)
 
 --- DEPRECATED ---
 

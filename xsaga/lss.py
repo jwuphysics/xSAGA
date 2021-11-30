@@ -1,6 +1,5 @@
 """
-John F. Wu
-2021-07-20
+John F. Wu (2021)
 
 Scripts for creating figures of large scale structure.
 """

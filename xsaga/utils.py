@@ -1,8 +1,7 @@
 """
-John F. Wu
-2021-07-22
+John F. Wu (2021)
 
-Utility functions.
+Utility functions for xSAGA analysis and plot-smithing.
 """
 import astropy.units as u
 from astropy.cosmology import FlatLambdaCDM

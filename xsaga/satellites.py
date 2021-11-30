@@ -1,12 +1,11 @@
 """
-John F. Wu
-2021-07-19
+John F. Wu (2021)
 
 A collection of methods to catalog xSAGA satellites and assign them to hosts.
 This file can produce the following catalogs: `hosts-nsa`, `lowz`, and `sats`,
 along with several diagnostic or results figures.
 
-We don't yet have a consistent naming convention, but it would be helpful to
+We don't yet have a strict naming convention, but it would be helpful to
 stick to something like this:
 
     Name                    Description

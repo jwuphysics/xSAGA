@@ -1,6 +1,5 @@
 """
-John F. Wu
-2021-07-22
+John F. Wu (2021)
 
 Scripts for investigating the radial distribution of satellties around hosts. Output
 plots are saved to `{ROOT}/results/xSAGA/plots/profiles/`

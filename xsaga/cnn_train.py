@@ -1,6 +1,5 @@
 """
-John F. Wu
-2021-08-02
+John F. Wu (2021)
 
 Script for training the convolutional neural network. Uses the model files found
 in `model/xresnet_deconv.py` and `model/deconv.py`.

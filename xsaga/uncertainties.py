@@ -1,5 +1,5 @@
-"""John F Wu
-2021-08-03
+"""
+John F Wu (2021)
 
 Scripts for quantifying the uncertainties, biases, and errors in satellite catalogs.
 """
