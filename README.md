@@ -41,11 +41,24 @@ We define CNN-selected galaxies as satellite galaxies if they are within 300 pro
 <img align="center" width=480px src="assets/saga-comparison.png" alt=" Part of Figure 6 from the xSAGA I paper."/>  
 
 
-### Figures
+## Figures and Code
 
 All figures presented in our paper can be reproduced by running the cells in the `paper-figures.ipynb` Jupyter notebook. The notebook can be accessed through the [nbviewer website](https://nbviewer.org/github/jwuphysics/xSAGA/blob/main/paper-figures.ipynb).
 
-# Code
+The code used for this analysis can be found in `xsaga/`. Most of the relevant methods are located in `satellites.py` and `radial_profiles.py`.
+
+All steps for training the CNN (using `Pytorch` and `Fastai` version 2) are in `xsaga/cnn_train.py`. Note that this relies on the [`deconvolution`](https://github.com/yechengxi/deconvolution) module and the [hybrid deconvolution](https://github.com/jwuphysics/predicting-spectra-from-images/) code, which are copied into the `src/model/` directory.
+
+Additional helper scripts are located in `src/`.
+
 
 # Citation
 
+```
+@ARTICLE{xSAGA2021,
+    author = {{Wu}, J.~F. and {Peek}, J.~E.~G. and {Tollerud}, E.~J. and {Mao}, Y.-Y. and {Nadler}, E.~O. and {Geha}, M. and {Wechsler}, R.~H. and {Kallivayalil}, N. and {Weiner}, B.~J.},
+    title = {Extending the SAGA Survey (xSAGA) I: Satellite Radial Profiles as a Function of Host Galaxy Properties},
+    year = {2021},    
+    journal = {ApJ, submitted}
+}
+```
