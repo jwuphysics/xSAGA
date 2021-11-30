@@ -3,10 +3,7 @@ John F. Wu
 2021-07-22
 
 Scripts for investigating the radial distribution of satellties around hosts. Output
-plots are saved to `{ROOT}/results/xSAGA/plots/profiles-overlapping_hosts/`
-
-Note: in `{ROOT}/results/xSAGA/plots/profiles-not_isolated_hosts/`, you can also find
-the script generated before we ensured that hosts are isolated/not overlapping.
+plots are saved to `{ROOT}/results/xSAGA/plots/profiles/`
 """
 
 import matplotlib.pyplot as plt
@@ -17,6 +14,7 @@ from astropy.cosmology import FlatLambdaCDM
 from astropy.coordinates import SkyCoord
 from astropy.stats import bootstrap
 from astropy import units as u
+from astropy.utils.misc import NumpyRNGContext
 import cmasher as cmr
 from easyquery import Query
 from functools import partial
@@ -27,6 +25,7 @@ from utils import mass2color, gap2color
 from satellites import compute_magnitude_gap
 
 rng = np.random.default_rng(42)
+astropy_rng = NumpyRNGContext(42)
 
 cosmo = FlatLambdaCDM(H0=70, Om0=0.3)
 
@@ -143,22 +142,23 @@ def compute_nonsatellite_profile(N_unrelated_lowz, radial_bins):
     )
 
 
-def bootstrap_saga_profile(radial_bins, M_r_lim=M_r_lim, N_boot=100):
-    """Download and open SAGA II sats catalog and return the bootstrapped radial profile.
+def bootstrap_saga_profile(radial_bins, M_r_lim=M_r_lim, N_boot=100, rng=rng):
+    """Download and open SAGA sats catalog and return the bootstrapped radial profile.
     """
     saga = pd.read_csv(ROOT / "data/saga_stage2_sats.csv")
     saga = Query(f"R_ABS <= {M_r_lim}").filter(saga)
 
     N_SAGA = 36
 
-    boot_profile_saga = (
-        bootstrap(
-            saga.D_PROJ.values,
-            bootfunc=partial(compute_radial_profile, radial_bins=radial_bins),
-            bootnum=N_boot,
+    with astropy_rng:
+        boot_profile_saga = (
+            bootstrap(
+                saga.D_PROJ.values,
+                bootfunc=partial(compute_radial_profile, radial_bins=radial_bins),
+                bootnum=N_boot,
+            )
+            / N_SAGA
         )
-        / N_SAGA
-    )
 
     SAGA_AT_36KPC = boot_profile_saga.min(1, keepdims=True)
 
@@ -352,6 +352,7 @@ def plot_radial_profile_by_host_mass(
                     alpha=0.7,
                 )
 
+        # do something useful here
         except ValueError as e:
             raise e
 
