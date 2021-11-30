@@ -58,8 +58,14 @@ The authors are: **John F. Wu (STScI)**, J. E. G. Peek (STScI/JHU), Erik J. Toll
 
 ```
 @ARTICLE{xSAGA2021,
-    author = {{Wu}, J.~F. and {Peek}, J.~E.~G. and {Tollerud}, E.~J. and {Mao}, Y.-Y. and {Nadler}, E.~O. and {Geha}, M. and {Wechsler}, R.~H. and {Kallivayalil}, N. and {Weiner}, B.~J.},
-    title = {Extending the SAGA Survey (xSAGA) I: Satellite Radial Profiles as a Function of Host Galaxy Properties},
+    author = {{Wu}, J.~F. and {Peek}, J.~E.~G. 
+        and {Tollerud}, E.~J. and {Mao}, Y.-Y. 
+        and {Nadler}, E.~O. and {Geha}, M. 
+        and {Wechsler}, R.~H. and {Kallivayalil}, N. 
+        and {Weiner}, B.~J.},
+    title = {Extending the SAGA Survey (xSAGA) I: 
+        Satellite Radial Profiles as a Function of 
+        Host Galaxy Properties},
     year = {2021},    
     journal = {ApJ, submitted}
 }
