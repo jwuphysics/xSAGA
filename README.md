@@ -14,7 +14,7 @@ We feed image cutouts [DESI Legacy Imaging Surveys](https://www.legacysurvey.org
 
 Redshifts from the [Satellites Around Galactic Analogs (SAGA) Survey](https://ui.adsabs.harvard.edu/abs/2021ApJ...907...85M/abstract) comprise the training set labels. While the SAGA Stage II redshifts are publicly available [online](https://sagasurvey.org/), we use a proprietary redshift catalog that will be released in a future SAGA paper. 
 
-After we have trained the CNN, we can make predictions for a test data set of 4.4 million photometrically selected candidates in SDSS/Legacy Survey (see paper for details). The CNN identifies over 100,000 galaxies as low-redshift candidates
+After we have trained the CNN, we can make predictions for a data set of 4.4 million photometrically selected candidates in SDSS/Legacy Survey (see paper for details). The CNN identifies over 100,000 objects as probable low-redshift galaxies, vastly exceeding the number of spectroscopically confirmed low-redshift galaxies in existing surveys (e.g., SDSS, GAMA, or SAGA).
 
 ## Results
 
