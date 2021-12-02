@@ -24,12 +24,12 @@ In addition to the stellar mass dependence, we also find a modest increase in sa
 
 <img align="center" width=480px src="assets/morphology.png" alt="Satellite radial profiles as a function of host stellar mass, separated into disky and elliptical morphologies. Figure 7 from the xSAGA I paper."/>  
 
-### The satellite abundance correlates strongly with the magnitude gap between a host and its brightest satellite.** 
+### The satellite abundance correlates strongly with the magnitude gap between a host and its brightest satellite. 
 In the figure below, we now compute the total number of satellites within the projected virial radius, and plot it against the magnitude gap and host stellar mass.
 
 <img align="center" width=480px src="assets/magnitude-gap.png" alt="The satellite abudance within the virial radius as a function of magnitude gap and host stellar mass. Figure 12 from the xSAGA I paper."/>  
 
-### "xSAGA confirms and extends key SAGA Survey results. 
+### xSAGA confirms and extends key SAGA Survey results. 
 We compare the radial profiles of satellites around isolated host galaxies in the same stellar mass range as SAGA (10<sup>10</sup>–10<sup>11</sup> M<sub>⊙</sub>; see figure below). Our results are in excellent agreement.
 
 <img align="center" width=480px src="assets/saga-comparison.png" alt=" Part of Figure 6 from the xSAGA I paper."/>  
@@ -47,7 +47,7 @@ We define CNN-selected galaxies as satellite galaxies if they are within 300 pro
 
 ## Figures and Code
 
-All figures presented in our paper can be reproduced by running the cells in the `paper-figures.ipynb` Jupyter notebook. The notebook can be accessed through the [nbviewer website](https://nbviewer.org/github/jwuphysics/xSAGA/blob/main/paper-figures.ipynb).
+All figures presented in our paper can be reproduced by running the cells in the `paper-figures.ipynb` Jupyter notebook. The notebook can be accessed through the [nbviewer website](https://nbviewer.org/github/jwuphysics/xSAGA/blob/main/paper-figures.ipynb). Note that the requirements in `requirements_at_publication.txt` must be used; otherwise there is a chance that the dependencies won't match. 
 
 The code used for this analysis can be found in `xsaga/`. Most of the relevant methods are located in `satellites.py` and `radial_profiles.py`.
 
