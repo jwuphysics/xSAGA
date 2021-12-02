@@ -47,7 +47,7 @@ We define CNN-selected galaxies as satellite galaxies if they are within 300 pro
 
 ## Figures and Code
 
-All figures presented in our paper can be reproduced by running the cells in the `paper-figures.ipynb` Jupyter notebook. The notebook can be accessed through the [nbviewer website](https://nbviewer.org/github/jwuphysics/xSAGA/blob/main/paper-figures.ipynb).
+All figures presented in our paper can be reproduced by running the cells in the `paper-figures.ipynb` Jupyter notebook. The notebook can be accessed through the [nbviewer website](https://nbviewer.org/github/jwuphysics/xSAGA/blob/main/paper-figures.ipynb). Note that the requirements in `requirements_at_publication.txt` must be used; otherwise there is a chance that the dependencies won't match. 
 
 The code used for this analysis can be found in `xsaga/`. Most of the relevant methods are located in `satellites.py` and `radial_profiles.py`.
 
