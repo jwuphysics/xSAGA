@@ -75,6 +75,10 @@ The authors are: **John F. Wu (STScI)**, J. E. G. Peek (STScI/JHU), Erik J. Toll
         Satellite Radial Profiles as a Function of 
         Host Galaxy Properties},
     year = {2021},    
-    journal = {ApJ, submitted}
+    journal = {ApJ, submitted},
+    archivePrefix = {arXiv},
+    eprint = {2112.01542},
+    eid = {arXiv:2112.01542},
+    adsurl = {https://ui.adsabs.harvard.edu/abs/2021arXiv211201542W}
 }
 ```
