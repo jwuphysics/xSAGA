@@ -1,4 +1,6 @@
 # xSAGA: Extending the SAGA Survey
+[![arXiv](https://img.shields.io/badge/arXiv-2112.01542-003f5c.svg)](https://arxiv.org/abs/2112.01542) 
+
 
 ## Identifying low-redshift galaxies with CNNs
 
