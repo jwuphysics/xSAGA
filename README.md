@@ -1,5 +1,5 @@
 # xSAGA: Extending the SAGA Survey
-[![arXiv](https://img.shields.io/badge/arXiv-2112.01542-003f5c.svg)](https://arxiv.org/abs/2112.01542) 
+[![arXiv](https://img.shields.io/badge/arXiv-2112.01542-003f5c.svg)](https://arxiv.org/abs/2112.01542) [![ADS](https://img.shields.io/badge/ApJ-2022%2c927%2c121-blue.svg)](https://ui.adsabs.harvard.edu/abs/2022ApJ...927..121W/abstract)
 
 
 ## Identifying low-redshift galaxies with CNNs
@@ -65,20 +65,24 @@ The paper is titled: "Extending the SAGA Survey (xSAGA) I: Satellite Radial Prof
 The authors are: **John F. Wu (STScI)**, J. E. G. Peek (STScI/JHU), Erik J. Tollerud (STScI), Yao-Yuan Mao (Rutgers), Ethan O. Nadler (Carnegie/USC), Marla Geha (Yale), Risa H. Wechsler (Stanford/KIPAC/SLAC), Nitya Kallivayalil (U. Virginia), Benjamin J. Weiner (Steward/Arizona)
 
 ```
-@ARTICLE{xSAGA2021,
-    author = {{Wu}, J.~F. and {Peek}, J.~E.~G. 
-        and {Tollerud}, E.~J. and {Mao}, Y.-Y. 
-        and {Nadler}, E.~O. and {Geha}, M. 
-        and {Wechsler}, R.~H. and {Kallivayalil}, N. 
-        and {Weiner}, B.~J.},
-    title = {Extending the SAGA Survey (xSAGA) I: 
-        Satellite Radial Profiles as a Function of 
-        Host Galaxy Properties},
-    year = {2021},    
-    journal = {ApJ, submitted},
-    archivePrefix = {arXiv},
-    eprint = {2112.01542},
-    eid = {arXiv:2112.01542},
-    adsurl = {https://ui.adsabs.harvard.edu/abs/2021arXiv211201542W}
+@ARTICLE{2022ApJ...927..121W,
+       author = {{Wu}, John F. and {Peek}, J.~E.~G. and {Tollerud}, Erik J. and {Mao}, Yao-Yuan and {Nadler}, Ethan O. and {Geha}, Marla and {Wechsler}, Risa H. and {Kallivayalil}, Nitya and {Weiner}, Benjamin J.},
+        title = "{Extending the SAGA Survey (xSAGA). I. Satellite Radial Profiles as a Function of Host-galaxy Properties}",
+      journal = {\apj},
+     keywords = {Dwarf galaxies, Galaxy evolution, Galaxy formation, Galaxy groups, Convolutional neural networks, 416, 594, 595, 597, 1938, Astrophysics - Astrophysics of Galaxies, Astrophysics - Instrumentation and Methods for Astrophysics},
+         year = 2022,
+        month = mar,
+       volume = {927},
+       number = {1},
+          eid = {121},
+        pages = {121},
+          doi = {10.3847/1538-4357/ac4eea},
+archivePrefix = {arXiv},
+       eprint = {2112.01542},
+ primaryClass = {astro-ph.GA},
+       adsurl = {https://ui.adsabs.harvard.edu/abs/2022ApJ...927..121W},
+      adsnote = {Provided by the SAO/NASA Astrophysics Data System}
 }
+
+
 ```
